@@ -25,6 +25,13 @@ dependencies {
     productionRuntimeMods rootProject.createFlyDependency
     productionRuntimeMods "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forgeconfigapiport_version}"
     productionRuntimeMods "teamreborn:energy:${energy_version}"
+    // -Psmoke_with_compat_mods=true also loads the optional mods Sable/Aeronautics have compat mixins for,
+    // so the smoke tests' mixin audit covers those mixins too.
+    if (project.findProperty('smoke_with_compat_mods') == 'true') {
+        productionRuntimeMods "maven.modrinth:sodium:${sodium_version}"
+        productionRuntimeMods "maven.modrinth:iris:${iris_version}"
+        productionRuntimeMods "maven.modrinth:scalablelux:${scalablelux_version}"
+    }
 }
 
 def productionBundle = rootProject.tasks.named('build4In1Jar')

@@ -47,6 +47,12 @@ The rendering checks (marked 🎨) need running once per pass. Everything else o
 | **B** | Sodium mc26.1.2-0.9.2 | Sable's separate Sodium render path |
 | **C** | Sodium + Iris 1.11.4+26.1 + a shader pack (e.g. Complementary) | Iris laser/burner queues, shader-compat ghost blocks |
 
+Optional-mod version rules (Sable's `fabric.mod.json` refuses to load otherwise):
+- **Sodium must be 0.9.2 or newer.** 0.9.1 is rejected; Sable's Sodium mixins were built against 0.9.2.
+- **ScalableLux**, if you use it, must be between **0.2.0 and 0.3.0-alpha.0.2**. Sable patches its lighting
+  engine, so each new ScalableLux version has to be checked before it is allowed (see PORTING-26.1.md, Tips).
+  ScalableLux is worth adding to pass B: Sable has compat code for it, and section 2.2 (lighting) exercises it.
+
 ### 0.4 Worlds
 
 - Use **new worlds only**. Upgrading 1.21.11 worlds is deliberately unsupported (see Decisions in PORTING-26.1.md).

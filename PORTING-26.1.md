@@ -51,7 +51,7 @@ back to `maven.modrinth:create-fly:${create_fly_version}`.
 | sodium_version | mc1.21.11-0.8.14 | mc26.1.2-0.9.2-fabric |
 | iris_version | 1.10.8+1.21.11 | 1.11.4+26.1-fabric |
 | entityculling_version | CFBkR8Vm | VhQ51u7a (1.11.3) |
-| scalablelux_version | 0.1.6 | 0.2.0+fabric.2b63825 |
+| scalablelux_version | 0.1.6 | 0.2.0+fabric.2b63825 | (runtime range 0.2.0 – 0.3.0-alpha.0.2) |
 
 Still pinned to 1.21.1 artifacts (need a decision):
 - ~~`veil-fabric-1.21.1`~~ — removed; replaced with vanilla rendering. See [Veil replacement](#veil-replacement).
@@ -357,6 +357,16 @@ probably crashed if reached. What each use became:
 
 ## Tips
 
+- **Smoke with optional mods:** add `-Psmoke_with_compat_mods=true` to either production smoke task to also load
+  Sodium, Iris and ScalableLux, so the mixin audit covers Sable's/Aeronautics' compat mixins. Override a version
+  with e.g. `"-Pscalablelux_version=0.3.0-alpha.0.2+26.1.2"`.
+- **Allowing a new ScalableLux version:** Sable's `fabric.mod.json` `breaks` pins ScalableLux to verified versions
+  (currently 0.2.0 – 0.3.0-alpha.0.2). Two of its injections use `@ModifyVariable(index = N)`, which silently
+  hit the wrong variable (wrong lighting, no crash) if the bytecode shifts. To allow a new version: download it,
+  `javap -p -c` `BlockStarLightEngine`, `StarLightEngine` and `StarLightInterface` from the old and new jars, and
+  compare `checkBlock`, `calculateLightValue`, `handleUpdateInternal` and `getAnyChunkNow` (ignore `line N:`
+  rows, and strip the `scalablelux$` prefix 0.3.0 added to interface methods). If they're identical, widen the
+  range and run the compat-mods smoke. 0.2.0 → 0.3.0-alpha.0.2 was identical.
 - **Static mixin audit** (session scratchpad, not in the repo): `check_mixin_targets.pl <repo> <javap> <classpath-file>`.
   It checks target classes, `method`/`target` names and descriptors, `@Shadow` members (including method parameter
   types) and `@Inject`/`@WrapMethod` handler parameters against the real 26.1 classes. Known false positives:
