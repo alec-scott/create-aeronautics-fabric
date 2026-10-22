@@ -13,6 +13,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.renderer.block.FluidModel;
 import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.resources.Identifier;
+import org.spongepowered.asm.mixin.MixinEnvironment;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -51,6 +52,9 @@ public final class AeronauticsFabricClient implements ClientModInitializer {
             if (Boolean.getBoolean("aeronautics.productionSmokeTest")
                     && client.getOverlay() == null
                     && PRODUCTION_SMOKE_TICKS.incrementAndGet() == PRODUCTION_SMOKE_REQUIRED_TICKS) {
+                // Mixins apply lazily when their target class loads; force every target to load so in-world-only
+                // classes (e.g. Create's BoilerData) are checked too.
+                MixinEnvironment.getCurrentEnvironment().audit();
                 // Create normally loads this only after joining a world. Exercise its mixins in production too.
                 PlacementClient.tick(client);
                 Aeronautics.LOGGER.info("AERONAUTICS_PRODUCTION_CLIENT_SMOKE_OK");

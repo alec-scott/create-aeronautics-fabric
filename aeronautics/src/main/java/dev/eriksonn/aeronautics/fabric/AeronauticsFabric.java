@@ -9,6 +9,7 @@ import dev.eriksonn.aeronautics.index.AeroArmInteractionPoints;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import org.spongepowered.asm.mixin.MixinEnvironment;
 
 public final class AeronauticsFabric implements ModInitializer {
     @Override
@@ -29,6 +30,8 @@ public final class AeronauticsFabric implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPED.register(AeronauticsCommonEvents::onServerStopped);
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             if (Boolean.getBoolean("aeronautics.productionSmokeTest")) {
+                // Force every mixin target to load so mixins on classes not touched at startup are checked too.
+                MixinEnvironment.getCurrentEnvironment().audit();
                 Aeronautics.LOGGER.info("AERONAUTICS_PRODUCTION_SERVER_SMOKE_OK");
                 server.halt(false);
             }

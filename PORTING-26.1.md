@@ -226,7 +226,11 @@ Create Fly 26.1 no longer has:
 
 ## Runtime mixin fixes (client + server smoke pass, 2026-10-22)
 
-`runProductionServerSmoke` and `runProductionClientSmoke` both pass. The client smoke now waits for the loading
+`runProductionServerSmoke` and `runProductionClientSmoke` both pass. Both call
+`MixinEnvironment.audit()` before printing their marker, which force-loads every mixin target class, so mixins on
+classes that only load in a world (e.g. Create's `BoilerData`) are applied and checked on every run. That found two
+more latent failures: `RenderSectionRegion.level` is now `ClientLevel`, and Create Fly moved the ghost-block buffer
+lookup into `TransparentGhostBlockRenderer$Output.update`. The client smoke now waits for the loading
 overlay to close (see `AeronauticsFabricClient`), so it covers the full resource reload: atlases, models, shaders.
 It does **not** join a world, so nothing here proves in-world rendering or physics.
 
@@ -261,8 +265,8 @@ Non-mixin runtime fixes:
 3. ~~Simulated, Offroad, Aeronautics compile~~ ✅ (2026-10-22). The 4-in-1 jar builds.
 4. Decide on replacements for the dropped Create Fly classes and for Porting Lib.
 5. ~~Production server and client smoke~~ ✅ (2026-10-22).
-6. Run `runClient`, join a world and work through the in-game checks (diagram/Veil replacement, levitite, End Sea,
-   sub-level rendering with and without Sodium, rock cutting wheel). Then `runGameTest` / `runClientGameTest`.
+6. Work through [IN-GAME-TESTING-26.1.md](IN-GAME-TESTING-26.1.md) (three passes: vanilla, Sodium, Sodium + Iris)
+   and record results in its Results log.
 
 Decompiled 26.1.2 sources: run `./gradlew :sable:genSources`, then unzip
 `.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-*/26.1.2/*-sources.jar` somewhere to grep.
