@@ -25,13 +25,14 @@ dependencies {
     productionRuntimeMods rootProject.createFlyDependency
     productionRuntimeMods "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forgeconfigapiport_version}"
     productionRuntimeMods "teamreborn:energy:${energy_version}"
-    // -Psmoke_with_compat_mods=true also loads the optional mods Sable/Aeronautics have compat mixins for,
+    // -Psmoke_with_compat_mods=true also loads the optional mods Sable/Simulated/Aeronautics have compat mixins for,
     // so the smoke tests' mixin audit covers those mixins too.
     if (project.findProperty('smoke_with_compat_mods') == 'true') {
         // -Psmoke_sodium_version=... runs against a different Sodium than the one compiled against.
         productionRuntimeMods "maven.modrinth:sodium:${findProperty('smoke_sodium_version') ?: sodium_version}"
         productionRuntimeMods "maven.modrinth:iris:${iris_version}"
         productionRuntimeMods "maven.modrinth:scalablelux:${scalablelux_version}"
+        productionRuntimeMods "maven.modrinth:jei:${jei_version}"
     }
     // -Psmoke_extra_mods=a.jar,b.jar adds arbitrary mod jars (e.g. a player's modpack) to the smoke tests.
     if (project.findProperty('smoke_extra_mods')) {
@@ -42,6 +43,8 @@ dependencies {
 def productionBundle = rootProject.tasks.named('build4In1Jar')
 def productionSmokeJvmArgs = [
         '-Daeronautics.productionSmokeTest=true',
+        // Warn when an optional injector (require = 0, expect = N) stops matching.
+        '-Dmixin.debug.countInjections=true',
         '-Xmx3G'
 ]
 def requireProductionSmokeMarker = { task, String marker, List<String> allowedErrors = [] ->

@@ -253,6 +253,14 @@ Mixin configs use `defaultRequire: 1`, so every stale target crashes startup, on
 | `CreativeModeInventoryScreen.render` | `extractRenderState` | simulated `creative_tab_sections` |
 | `@Local` LVT in `Block.dropResources`-style lambdas | extra captured `RandomSource` local | sable `entity_kicking/BlockMixin` |
 
+- **Optional-mod mixins are only checked when that mod is present.** Simulated's `silence_jei` mixin targeted
+  `ItemStackListFactory.create`, but JEI 29.x moved the log call into `lambda$create$2`. Without JEI in the smoke
+  tests it was never applied, and in a real modpack it crashed every world join ("Network Protocol Error"). It now
+  uses `method = "*"` with `require = 0` and recognises Simulated's tab from the log arguments, so no JEI update can
+  make it crash. Note: `require = 0` does **not** protect against a missing *method name* (that still fails mixin
+  application), only a missing injection point. The static audit also misses this, since it only checks that the
+  method exists, not that the `@At` target is inside it. JEI is now part of `-Psmoke_with_compat_mods=true`.
+
 Non-mixin runtime fixes:
 - **Fabric Loader 0.19.2 → 0.20.1.** It bundles sponge-mixin 0.17.5; 0.17.2 NPE'd applying the `CameraType` enum mixin.
 - `LegacyItemTooltips`: item components aren't bound at client init, so `getDefaultInstance().getRarity()` threw
@@ -358,7 +366,7 @@ probably crashed if reached. What each use became:
 ## Tips
 
 - **Smoke with optional mods:** add `-Psmoke_with_compat_mods=true` to either production smoke task to also load
-  Sodium, Iris and ScalableLux, so the mixin audit covers Sable's/Aeronautics' compat mixins. Override a version
+  Sodium, Iris, ScalableLux and JEI, so the mixin audit covers Sable's/Aeronautics' compat mixins. Override a version
   with e.g. `"-Pscalablelux_version=0.3.0-alpha.0.2+26.1.2"`.
 - **Smoke with a player's own mods:** `-Psmoke_extra_mods=C:/path/a.jar,C:/path/b.jar` adds jars to either
   smoke task. Combine with `-Psmoke_with_compat_mods=true`; `-Psmoke_sodium_version=mc26.1.2-0.9.2-fabric` runs
