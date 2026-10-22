@@ -51,7 +51,7 @@ back to `maven.modrinth:create-fly:${create_fly_version}`.
 | sodium_version | mc1.21.11-0.8.14 | mc26.1.2-0.9.2-fabric |
 | iris_version | 1.10.8+1.21.11 | 1.11.4+26.1-fabric |
 | entityculling_version | CFBkR8Vm | VhQ51u7a (1.11.3) |
-| scalablelux_version | 0.1.6 | 0.2.0+fabric.2b63825 | (runtime range 0.2.0 – 0.3.0-alpha.0.2) |
+| scalablelux_version | 0.1.6 | 0.2.0+fabric.2b63825 (runtime range 0.2.0 – 0.3.0-alpha.0.2) |
 
 Still pinned to 1.21.1 artifacts (need a decision):
 - ~~`veil-fabric-1.21.1`~~ — removed; replaced with vanilla rendering. See [Veil replacement](#veil-replacement).
