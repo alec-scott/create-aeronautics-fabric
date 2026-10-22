@@ -4,10 +4,10 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.ryanhcode.sable.render.SubLevelDynamicLights;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
-import net.fabricmc.fabric.api.renderer.v1.render.BlockVertexConsumerProvider;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.LightLayer;
@@ -25,8 +25,7 @@ import java.util.Map;
  * Trilinear sampling also guarantees that two blocks sharing a physical vertex
  * receive the same parent-world light value.</p>
  */
-public final class SubLevelLightVertexConsumerProvider
-        implements BlockVertexConsumerProvider, MultiBufferSource {
+public final class SubLevelLightVertexConsumerProvider implements MultiBufferSource {
 
     private static final double LIGHT_CELL_CENTER = 0.5;
 
@@ -35,8 +34,7 @@ public final class SubLevelLightVertexConsumerProvider
     private final double cameraY;
     private final double cameraZ;
     private final SubLevelDynamicLights.OwnLightMask ownLightMask;
-    private final BlockVertexConsumerProvider blockDelegate;
-    private final MultiBufferSource blockEntityDelegate;
+    private final MultiBufferSource delegate;
     private final Map<VertexConsumer, SubLevelLightVertexConsumer> consumers = new IdentityHashMap<>();
     private final Long2IntOpenHashMap lightCache = new Long2IntOpenHashMap();
     private final BlockPos.MutableBlockPos lightPos = new BlockPos.MutableBlockPos();
@@ -47,8 +45,7 @@ public final class SubLevelLightVertexConsumerProvider
             final double cameraX,
             final double cameraY,
             final double cameraZ,
-            final BlockVertexConsumerProvider blockDelegate,
-            final MultiBufferSource blockEntityDelegate
+            final MultiBufferSource delegate
     ) {
         this.level = level;
         this.cameraX = cameraX;
@@ -58,19 +55,26 @@ public final class SubLevelLightVertexConsumerProvider
                 level.getLightEngine(),
                 subLevel
         );
-        this.blockDelegate = blockDelegate;
-        this.blockEntityDelegate = blockEntityDelegate;
+        this.delegate = delegate;
         this.lightCache.defaultReturnValue(-1);
     }
 
-    @Override
+    /**
+     * Terrain quads rendered outside the chunk pipeline, mapped to the moving-block render types
+     * the same way vanilla renders pistons and falling blocks.
+     */
+    // PORT-NOTE(mc26.1): replaces Fabric's BlockVertexConsumerProvider and RenderLayerHelper.movingDelegate, both removed.
     public VertexConsumer getBuffer(final ChunkSectionLayer layer) {
-        return this.wrap(this.blockDelegate.getBuffer(layer));
+        return this.getBuffer(switch (layer) {
+            case SOLID -> RenderTypes.solidMovingBlock();
+            case CUTOUT -> RenderTypes.cutoutMovingBlock();
+            case TRANSLUCENT -> RenderTypes.translucentMovingBlock();
+        });
     }
 
     @Override
     public VertexConsumer getBuffer(final RenderType renderType) {
-        return this.wrap(this.blockEntityDelegate.getBuffer(renderType));
+        return this.wrap(this.delegate.getBuffer(renderType));
     }
 
     private VertexConsumer wrap(final VertexConsumer delegate) {

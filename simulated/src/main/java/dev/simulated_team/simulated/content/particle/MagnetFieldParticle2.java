@@ -5,7 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.*;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.state.QuadParticleRenderState;
+import net.minecraft.client.renderer.state.level.QuadParticleRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
@@ -20,7 +20,7 @@ public class MagnetFieldParticle2 extends SimpleAnimatedParticle {
                                    final double prevX, final double prevY, final double prevZ,
                                    final double nextX, final double nextY, final double nextZ,
                                    final SpriteSet sprite, final boolean negative,final int timeUntilEnd) {
-        super(world, x, y, z, sprite, world.random.nextFloat() * .5f);
+        super(world, x, y, z, sprite, world.getRandom().nextFloat() * .5f);
         this.hasPhysics = false;
         this.lifetime = 5;
 
@@ -116,9 +116,9 @@ public class MagnetFieldParticle2 extends SimpleAnimatedParticle {
         this.selectSprite(this.age +1);
     }
 
-    public int getLightColor(final float partialTick) {
+    public int getLightCoords(final float partialTick) {
         final BlockPos blockpos = new BlockPos((int) this.x, (int) this.y, (int) this.z);
-        return this.level.isLoaded(blockpos) ? LevelRenderer.getLightColor(this.level, blockpos) : 0;
+        return this.level.isLoaded(blockpos) ? LevelRenderer.getLightCoords(this.level, blockpos) : 0;
     }
 
     private void selectSprite(final int index) {

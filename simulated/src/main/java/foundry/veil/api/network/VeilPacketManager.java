@@ -151,7 +151,7 @@ public final class VeilPacketManager {
 
     public static PacketSink tracking(final ServerLevel level, final BlockPos min, final BlockPos max) {
         final Set<ServerPlayer> players = new LinkedHashSet<>();
-        ChunkPos.rangeClosed(new ChunkPos(min), new ChunkPos(max))
+        ChunkPos.rangeClosed(ChunkPos.containing(min), ChunkPos.containing(max))
                 .forEach(pos -> players.addAll(PlayerLookup.tracking(level, pos)));
         return players(players);
     }

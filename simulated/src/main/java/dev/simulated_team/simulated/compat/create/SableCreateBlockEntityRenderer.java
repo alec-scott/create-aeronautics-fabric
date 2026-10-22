@@ -27,7 +27,7 @@ import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer.CrumblingOverlay;
 import net.minecraft.client.renderer.item.ItemStackRenderState.FoilType;
-import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -263,7 +263,7 @@ public final class SableCreateBlockEntityRenderer {
                 final MovingBlockRenderState renderState
         ) {
             final int light = renderState.blockPos != null
-                    ? LevelRenderer.getLightColor(renderState, renderState.blockPos)
+                    ? LevelRenderer.getLightCoords(renderState, renderState.blockPos)
                     : this.fallbackLight;
             Minecraft.getInstance()
                     .getBlockRenderer()

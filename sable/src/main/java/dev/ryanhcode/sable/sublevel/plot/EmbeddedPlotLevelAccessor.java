@@ -1,7 +1,6 @@
 package dev.ryanhcode.sable.sublevel.plot;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.particles.ParticleOptions;
@@ -92,11 +91,6 @@ public class EmbeddedPlotLevelAccessor implements CommonLevelAccessor, ServerLev
     }
 
     @Override
-    public float getShade(final Direction direction, final boolean shade) {
-        return this.level.getShade(direction, shade);
-    }
-
-    @Override
     public WorldBorder getWorldBorder() {
         return this.level.getWorldBorder();
     }
@@ -133,7 +127,7 @@ public class EmbeddedPlotLevelAccessor implements CommonLevelAccessor, ServerLev
 
     @Override
     public @Nullable ChunkAccess getChunk(final int i, final int j, final ChunkStatus chunkStatus, final boolean bl) {
-        return this.level.getChunk(i + this.centerChunk.x, j + this.centerChunk.z, chunkStatus, bl);
+        return this.level.getChunk(i + this.centerChunk.x(), j + this.centerChunk.z(), chunkStatus, bl);
     }
 
     @Override
@@ -174,7 +168,7 @@ public class EmbeddedPlotLevelAccessor implements CommonLevelAccessor, ServerLev
 
     @Override
     public boolean hasChunk(final int i, final int j) {
-        return this.level.hasChunk(i + this.centerChunk.x, j + this.centerChunk.z);
+        return this.level.hasChunk(i + this.centerChunk.x(), j + this.centerChunk.z());
     }
 
     @Override

@@ -1,4 +1,4 @@
-accessWidener v2 named
+accessWidener v2 official
 
 accessible class net/minecraft/client/multiplayer/ClientChunkCache$Storage
 
@@ -37,15 +37,15 @@ extendable method net/minecraft/server/level/GenerationChunkHolder rescheduleChu
 
 accessible method net/minecraft/server/level/ThreadedLevelLightEngine updateChunkStatus (Lnet/minecraft/world/level/ChunkPos;)V
 
-accessible field net/minecraft/client/renderer/block/BlockRenderDispatcher modelRenderer Lnet/minecraft/client/renderer/block/ModelBlockRenderer;
+# PORT-NOTE(mc26.1): removed in 26.1: accessible field net/minecraft/client/renderer/block/BlockRenderDispatcher modelRenderer Lnet/minecraft/client/renderer/block/ModelBlockRenderer;
 accessible field net/minecraft/client/renderer/rendertype/RenderType name Ljava/lang/String;
 
 # Assembly
 accessible method net/minecraft/world/entity/decoration/HangingEntity calculateSupportBox ()Lnet/minecraft/world/phys/AABB;
 
 # Directional Shading
-accessible field net/minecraft/client/renderer/block/ModelBlockRenderer CACHE Ljava/lang/ThreadLocal;
-accessible class net/minecraft/client/renderer/block/ModelBlockRenderer$Cache
+# PORT-NOTE(mc26.1): removed in 26.1: accessible field net/minecraft/client/renderer/block/ModelBlockRenderer CACHE Ljava/lang/ThreadLocal;
+# PORT-NOTE(mc26.1): removed in 26.1: accessible class net/minecraft/client/renderer/block/ModelBlockRenderer$Cache
 
 # UDP Networking
 accessible field net/minecraft/network/Connection channel Lio/netty/channel/Channel;

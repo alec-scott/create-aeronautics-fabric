@@ -76,8 +76,8 @@ public class AbsorberBlock extends HorizontalDirectionalBlock implements IBE<Abs
     @Override
     protected InteractionResult useItemOn(final ItemStack stack, final BlockState state, final Level level, final BlockPos pos, final Player player, final InteractionHand hand, final BlockHitResult hitResult) {
         if (stack.is(Items.CARROT) && state.getValue(POWERED)) {
-            level.playLocalSound(pos, SoundEvents.GENERIC_EAT.value(), SoundSource.BLOCKS, 0.8f, 0.9f + 0.2f * level.random.nextFloat(), false);
-            level.playLocalSound(pos, SimSoundEvents.ABSORBER_EATS.event(), SoundSource.BLOCKS, 0.33f, 0.8f + 0.2f * level.random.nextFloat(), false);
+            level.playLocalSound(pos, SoundEvents.GENERIC_EAT.value(), SoundSource.BLOCKS, 0.8f, 0.9f + 0.2f * level.getRandom().nextFloat(), false);
+            level.playLocalSound(pos, SimSoundEvents.ABSORBER_EATS.event(), SoundSource.BLOCKS, 0.33f, 0.8f + 0.2f * level.getRandom().nextFloat(), false);
 
             if (level instanceof final ServerLevel serverLevel) {
                 final Vec3 mouthPos = pos.getCenter().add(Vec3.atLowerCornerOf(state.getValue(FACING).getUnitVec3i()).scale(0.5));

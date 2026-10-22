@@ -15,7 +15,7 @@ import dev.simulated_team.simulated.util.SimDistUtil;
 import dev.simulated_team.simulated.util.SimMathUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -107,9 +107,9 @@ public final class PhysicsStaffItemModel implements ItemModel, SpecialModelRende
 
         addLayer(state, displayContext, item, Sheets.cutoutBlockSheet(), foil, commonTransform, -1, false, partialTicks);
         addLayer(state, displayContext, core, SimRenderTypes.itemGlowingSolid(shadersActive),
-                ItemStackRenderState.FoilType.NONE, commonTransform, LightTexture.FULL_BRIGHT, false, partialTicks);
+                ItemStackRenderState.FoilType.NONE, commonTransform, LightCoordsUtil.FULL_BRIGHT, false, partialTicks);
         addLayer(state, displayContext, coreGlow, SimRenderTypes.itemGlowingTranslucent(shadersActive),
-                ItemStackRenderState.FoilType.NONE, commonTransform, LightTexture.FULL_BRIGHT, false, partialTicks);
+                ItemStackRenderState.FoilType.NONE, commonTransform, LightCoordsUtil.FULL_BRIGHT, false, partialTicks);
 
         addLayer(state, displayContext, ring, Sheets.cutoutBlockSheet(), ItemStackRenderState.FoilType.NONE,
                 matrices -> {
@@ -148,13 +148,13 @@ public final class PhysicsStaffItemModel implements ItemModel, SpecialModelRende
         };
 
         addLayer(state, displayContext, innerCube, SimRenderTypes.itemGlowingSolid(shadersActive),
-                ItemStackRenderState.FoilType.NONE, cubeTransform, LightTexture.FULL_BRIGHT,
+                ItemStackRenderState.FoilType.NONE, cubeTransform, LightCoordsUtil.FULL_BRIGHT,
                 displayContext.firstPerson() || captureBodyFocus, partialTicks);
         addLayer(state, displayContext, outerCube, SimRenderTypes.itemGlowingTranslucent(shadersActive),
                 ItemStackRenderState.FoilType.NONE, matrices -> {
                     cubeTransform.accept(matrices);
                     matrices.scale(1.2f, 1.2f, 1.2f);
-                }, LightTexture.FULL_BRIGHT, false, partialTicks);
+                }, LightCoordsUtil.FULL_BRIGHT, false, partialTicks);
     }
 
     private StaffAnimation animation(

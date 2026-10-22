@@ -13,7 +13,7 @@ public class MagnetFieldParticle extends SimpleAnimatedParticle {
 
     protected MagnetFieldParticle(final ClientLevel world, final double x, final double y, final double z, final double dx, final double dy,
                                   final double dz, final SpriteSet sprite, final boolean negative) {
-        super(world, x, y, z, sprite, world.random.nextFloat() * .5f);
+        super(world, x, y, z, sprite, world.getRandom().nextFloat() * .5f);
         this.hasPhysics = false;
         this.lifetime = 5;
         this.quadSize *= 0.75F;
@@ -57,9 +57,9 @@ public class MagnetFieldParticle extends SimpleAnimatedParticle {
 
     }
 
-    public int getLightColor(final float partialTick) {
+    public int getLightCoords(final float partialTick) {
         final BlockPos blockpos = new BlockPos((int) this.x, (int) this.y, (int) this.z);
-        return this.level.isLoaded(blockpos) ? LevelRenderer.getLightColor(this.level, blockpos) : 0;
+        return this.level.isLoaded(blockpos) ? LevelRenderer.getLightCoords(this.level, blockpos) : 0;
     }
 
     private void selectSprite(final int index) {

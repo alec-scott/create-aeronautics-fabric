@@ -2,6 +2,7 @@ package dev.ryanhcode.sable.sublevel.storage;
 
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import net.minecraft.nbt.CompoundTag;
+import dev.ryanhcode.sable.Sable;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
@@ -28,7 +29,7 @@ public class SubLevelOccupancySavedData extends SavedData {
         // File moves from data/sable_sub_level_occupancy.dat to data/sable/sable_sub_level_occupancy.dat (namespaced id).
         return level.getDataStorage().computeIfAbsent(
                 new SavedDataType<>(
-                        SubLevelOccupancySavedData.FILE_ID,
+                        Identifier.fromNamespaceAndPath(Sable.MOD_ID, SubLevelOccupancySavedData.FILE_ID),
                         () -> new SubLevelOccupancySavedData(level),
                         CompoundTag.CODEC.xmap(
                                 tag -> SubLevelOccupancySavedData.load(level, tag),

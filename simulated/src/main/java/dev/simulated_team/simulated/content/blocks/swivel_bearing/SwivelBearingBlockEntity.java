@@ -262,7 +262,7 @@ public class SwivelBearingBlockEntity extends LegacyKineticBlockEntity implement
     private void playGrindingEffect() {
         final Direction facing = this.getBlockState().getValue(SwivelBearingBlock.FACING);
 
-        final RandomSource random = this.level.random;
+        final RandomSource random = this.level.getRandom();
 
         final int stepX = facing.getStepX();
         final int stepY = facing.getStepY();

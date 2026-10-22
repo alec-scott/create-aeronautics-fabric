@@ -47,7 +47,7 @@ public class SubLevelTicketsSavedData extends SavedData {
         // data/sable/sable_sub_level_force_load_tickets.dat (namespaced id).
         return level.getDataStorage().computeIfAbsent(
                 new SavedDataType<>(
-                        SubLevelTicketsSavedData.FILE_ID,
+                        Identifier.fromNamespaceAndPath(Sable.MOD_ID, SubLevelTicketsSavedData.FILE_ID),
                         () -> new SubLevelTicketsSavedData(level),
                         CompoundTag.CODEC.xmap(
                                 tag -> SubLevelTicketsSavedData.load(level, tag),

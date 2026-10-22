@@ -3,12 +3,13 @@ package dev.ryanhcode.sable.compatibility.scalablelux;
 import ca.spottedleaf.starlight.common.light.StarLightEngine;
 import ca.spottedleaf.starlight.common.light.StarLightInterface;
 import ca.spottedleaf.starlight.common.light.StarLightLightingProvider;
+import dev.ryanhcode.sable.mixin.compatibility.scalablelux.StarLightInterfaceAccessor;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 
 /**
- * Direct bridge to ScalableLux 0.1.6's lighting implementation.
+ * Direct bridge to ScalableLux 0.2's lighting implementation.
  *
  * <p>This class is only linked when Fabric Loader reports ScalableLux as
  * loaded. Keeping the optional types here allows the rest of Sable to load
@@ -35,7 +36,13 @@ public final class ScalableLuxCompat {
     }
 
     public static void removeChunk(final LevelLightEngine engine, final ChunkPos pos) {
-        getLightEngine(engine).removeChunkTasks(pos);
+        // PORT-NOTE(mc26.1): removeChunkTasks is gone in ScalableLux 0.2; drop the queued tasks per queue type.
+        final StarLightInterface.LightQueue queue = ((StarLightInterfaceAccessor) (Object) getLightEngine(engine)).sable$getLightQueue();
+        if (queue instanceof final StarLightInterface.SimpleLightQueue simpleQueue) {
+            simpleQueue.removeChunk(pos);
+        } else if (queue instanceof final StarLightInterface.ConcurrentLightQueue concurrentQueue) {
+            concurrentQueue.takeTask(pos.pack());
+        }
         engine.setLightEnabled(pos, false);
     }
 

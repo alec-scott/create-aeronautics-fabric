@@ -3,6 +3,8 @@ package dev.ryanhcode.sable.mixin.sublevel_render.impl.sodium;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.textures.GpuSampler;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.QuadInstance;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.ryanhcode.sable.api.client.SubLevelBlockEntityRenderRegistry;
 import dev.ryanhcode.sable.api.sublevel.ClientSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
@@ -17,25 +19,28 @@ import net.caffeinemc.mods.sodium.client.render.SodiumWorldRenderer;
 import net.caffeinemc.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import net.caffeinemc.mods.sodium.client.render.viewport.Viewport;
 import net.caffeinemc.mods.sodium.client.util.FogParameters;
-import net.fabricmc.fabric.api.renderer.v1.Renderer;
-import net.fabricmc.fabric.api.renderer.v1.render.RenderLayerHelper;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.PrioritizeChunkUpdates;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.block.BlockQuadOutput;
+import net.minecraft.client.renderer.block.BlockStateModelSet;
+import net.minecraft.client.renderer.block.ModelBlockRenderer;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayerGroup;
 import net.minecraft.client.renderer.chunk.RenderRegionCache;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.client.renderer.state.LevelRenderState;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.BlockDestructionProgress;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
 import org.joml.Vector3dc;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -76,6 +81,7 @@ public abstract class SodiumWorldRendererMixin {
                 .sable$extractSubLevelBlockEntities(camera, partialTick, levelRenderState);
     }
 
+    // PORT-NOTE(mc26.1): Sodium 0.9 passes a Matrix4f here instead of ChunkRenderMatrices.
     @Inject(method = "setupTerrain", at = @At("TAIL"))
     private void sable$compileSubLevelSections(
             final Camera camera,
@@ -83,7 +89,7 @@ public abstract class SodiumWorldRendererMixin {
             final FogParameters fogParameters,
             final boolean spectator,
             final boolean updateImmediately,
-            final ChunkRenderMatrices matrices,
+            final Matrix4f projectionMatrix,
             final CallbackInfo ci
     ) {
         if (this.level == null) {
@@ -149,8 +155,12 @@ public abstract class SodiumWorldRendererMixin {
 
         final Minecraft minecraft = Minecraft.getInstance();
         final MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
-        final BlockRenderDispatcher blockRenderer = minecraft.getBlockRenderer();
-        final Renderer fabricRenderer = Renderer.get();
+        // PORT-NOTE(mc26.1): BlockRenderDispatcher and the Fabric Renderer.render entry point are gone. Tesselate
+        // like vanilla's section compiler (culled, smooth-lit) and emit quads the way moving blocks do.
+        final ModelBlockRenderer blockRenderer = new ModelBlockRenderer(
+                minecraft.options.ambientOcclusion().get(), true, minecraft.getBlockColors());
+        final BlockStateModelSet blockModels = minecraft.getModelManager().getBlockStateModelSet();
+        final boolean cutoutLeaves = minecraft.options.cutoutLeaves().get();
         final float partialTick = minecraft.getDeltaTracker().getGameTimeDeltaPartialTick(true);
 
         // This injection runs from Sodium's opaque terrain draw, just before
@@ -166,13 +176,16 @@ public abstract class SodiumWorldRendererMixin {
                     cameraX,
                     cameraY,
                     cameraZ,
-                    RenderLayerHelper.movingDelegate(bufferSource),
                     bufferSource
             );
             final SubLevelRenderData renderData = subLevel.getRenderData();
             final Pose3dc renderPose = subLevel.renderPose(partialTick);
             final Vector3dc rotationPoint = renderPose.rotationPoint();
             final PoseStack poseStack = new PoseStack();
+            final BlockQuadOutput quadOutput = (x, y, z, quad, instance) ->
+                    putBakedQuad(poseStack, blockBuffers.getBuffer(quad.materialInfo().layer()), x, y, z, quad, instance);
+            final BlockQuadOutput solidQuadOutput = (x, y, z, quad, instance) ->
+                    putBakedQuad(poseStack, blockBuffers.getBuffer(ChunkSectionLayer.SOLID), x, y, z, quad, instance);
             poseStack.mulPose(renderData.getTransformation(cameraX, cameraY, cameraZ));
             final var bounds = subLevel.getPlot().getBoundingBox();
             for (final BlockPos blockPos : BlockPos.betweenClosed(
@@ -197,23 +210,22 @@ public abstract class SodiumWorldRendererMixin {
                     // every vertex. renderSingleBlock uses one light value for the
                     // entire model, which makes nearby light sources visibly step
                     // from one sub-level block to the next.
-                    fabricRenderer.render(
-                            blockRenderer.getModelRenderer(),
+                    blockRenderer.tesselateBlock(
+                            ModelBlockRenderer.forceOpaque(cutoutLeaves, blockState) ? solidQuadOutput : quadOutput,
+                            0.0F,
+                            0.0F,
+                            0.0F,
                             this.level,
-                            blockRenderer.getBlockModel(blockState),
-                            blockState,
                             blockPos,
-                            poseStack,
-                            blockBuffers,
-                            true,
-                            blockState.getSeed(blockPos),
-                            OverlayTexture.NO_OVERLAY
+                            blockState,
+                            blockModels.get(blockState),
+                            blockState.getSeed(blockPos)
                     );
                 }
 
                 final BlockEntity blockEntity = this.level.getBlockEntity(blockPos);
                 if (blockEntity != null && !blockEntity.isRemoved()) {
-                    final int plotLight = LevelRenderer.getLightColor(this.level, blockPos);
+                    final int plotLight = LevelRenderer.getLightCoords(this.level, blockPos);
                     SubLevelBlockEntityRenderRegistry.render(
                             blockEntity,
                             partialTick,
@@ -228,6 +240,21 @@ public abstract class SodiumWorldRendererMixin {
         }
 
         bufferSource.endBatch();
+    }
+
+    private static void putBakedQuad(
+            final PoseStack poseStack,
+            final VertexConsumer buffer,
+            final float x,
+            final float y,
+            final float z,
+            final BakedQuad quad,
+            final QuadInstance instance
+    ) {
+        poseStack.pushPose();
+        poseStack.translate(x, y, z);
+        buffer.putBakedQuad(poseStack.last(), quad, instance);
+        poseStack.popPose();
     }
 
 }

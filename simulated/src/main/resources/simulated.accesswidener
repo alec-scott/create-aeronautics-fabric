@@ -1,4 +1,4 @@
-accessWidener v2 named
+accessWidener v2 official
 
 accessible class net/minecraft/world/item/CreativeModeTab$TabVisibility
 
@@ -28,4 +28,4 @@ accessible field net/minecraft/server/network/ServerGamePacketListenerImpl above
 accessible field net/minecraft/server/network/ServerGamePacketListenerImpl aboveGroundVehicleTickCount I
 
 # Physics Staff
-accessible method net/minecraft/client/renderer/GameRenderer getFov (Lnet/minecraft/client/Camera;FZ)F
+# PORT-NOTE(mc26.1): FOV moved to Camera in 26.1: accessible method net/minecraft/client/renderer/GameRenderer getFov (Lnet/minecraft/client/Camera;FZ)F

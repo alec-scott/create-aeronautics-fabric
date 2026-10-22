@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id 'net.fabricmc.fabric-loom-remap'
+    id 'net.fabricmc.fabric-loom'
 }
 
 apply from: rootProject.file('gradle/fabric-module.gradle')
@@ -163,22 +163,15 @@ def unpackPortingLibCompat = tasks.register('unpackPortingLibCompat', Sync) {
 sourceSets.main.output.dir(unpackPortingLibCompat)
 
 dependencies {
-    implementation(project(path: ':sable', configuration: 'namedElements')) {
+    implementation(project(':sable')) {
         transitive = false
     }
     runtimeOnly("dev.ryanhcode.sable-companion:sable-companion-common-1.21.1:${sable_companion_version}") {
         transitive = false
     }
-    include(modImplementation("teamreborn:energy:${energy_version}"))
+    include(implementation("teamreborn:energy:${energy_version}"))
 }
 
 tasks.named('jar', Jar) {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-
-    doFirst {
-        def refmap = layout.buildDirectory.file("classes/java/main/${mod_id}.refmap.json").get().asFile
-        if (!refmap.isFile()) {
-            throw new GradleException("Missing generated mixin refmap: ${refmap}")
-        }
-    }
 }

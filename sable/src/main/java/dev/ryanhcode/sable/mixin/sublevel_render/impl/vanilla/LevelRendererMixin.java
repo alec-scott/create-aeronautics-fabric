@@ -14,6 +14,7 @@ import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import dev.ryanhcode.sable.sublevel.render.SubLevelRenderData;
 import dev.ryanhcode.sable.sublevel.render.dispatcher.SubLevelRenderDispatcher;
 import dev.ryanhcode.sable.sublevel.render.vanilla.VanillaChunkedSubLevelRenderData;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.PrioritizeChunkUpdates;
@@ -23,7 +24,6 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
 import net.minecraft.client.renderer.chunk.RenderRegionCache;
-import net.minecraft.client.renderer.chunk.SectionBuffers;
 import net.minecraft.client.renderer.chunk.SectionMesh;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.client.renderer.culling.Frustum;
@@ -59,6 +59,9 @@ public abstract class LevelRendererMixin {
     @Final
     private Minecraft minecraft;
 
+    @Shadow
+    private @Nullable SectionRenderDispatcher sectionRenderDispatcher;
+
     @Inject(method = "compileSections", at = @At("TAIL"))
     private void sable$compileSections(final Camera camera, final CallbackInfo ci) {
         final Iterable<ClientSubLevel> sublevels = ((ClientSubLevelContainer) ((SubLevelContainerHolder) this.level).sable$getPlotContainer()).getAllSubLevels();
@@ -85,8 +88,10 @@ public abstract class LevelRendererMixin {
         profiler.pop();
     }
 
+    // PORT-NOTE(mc26.1): prepareChunkRenders lost its camera parameters, and section geometry now lives in the
+    // dispatcher's pooled buffers. Each draw is addressed by a slice offset instead of a per-section SectionBuffers.
     @Inject(method = "prepareChunkRenders", at = @At("RETURN"), cancellable = true)
-    private void sable$appendSubLevelSections(final Matrix4fc baseModelView, final double cameraX, final double cameraY, final double cameraZ, final CallbackInfoReturnable<ChunkSectionsToRender> cir) {
+    private void sable$appendSubLevelSections(final Matrix4fc baseModelView, final CallbackInfoReturnable<ChunkSectionsToRender> cir) {
         // Sodium cancels the vanilla renderGroup implementation. Its dedicated
         // mixin renders sub-level meshes after each Sodium terrain group instead.
         if (SableLoaderPlatform.INSTANCE.isModLoaded("sodium")) {
@@ -98,77 +103,112 @@ public abstract class LevelRendererMixin {
         }
 
         final ClientSubLevelContainer container = SubLevelContainer.getContainer(this.level);
-        if (container == null) {
+        if (container == null || this.sectionRenderDispatcher == null) {
             return;
         }
 
+        final Vec3 cameraPosition = this.minecraft.gameRenderer.getMainCamera().position();
+        final double cameraX = cameraPosition.x;
+        final double cameraY = cameraPosition.y;
+        final double cameraZ = cameraPosition.z;
+
         final ChunkSectionsToRender original = cir.getReturnValue();
-        final EnumMap<ChunkSectionLayer, List<RenderPass.Draw<GpuBufferSlice[]>>> drawsPerLayer = new EnumMap<>(ChunkSectionLayer.class);
+        final EnumMap<ChunkSectionLayer, Int2ObjectOpenHashMap<List<RenderPass.Draw<GpuBufferSlice[]>>>> drawGroupsPerLayer = new EnumMap<>(ChunkSectionLayer.class);
         for (final ChunkSectionLayer layer : ChunkSectionLayer.values()) {
-            final List<RenderPass.Draw<GpuBufferSlice[]>> existingDraws = original.drawsPerLayer().get(layer);
-            drawsPerLayer.put(layer, existingDraws == null ? new ArrayList<>() : new ArrayList<>(existingDraws));
+            final Int2ObjectOpenHashMap<List<RenderPass.Draw<GpuBufferSlice[]>>> groups = new Int2ObjectOpenHashMap<>();
+            final Int2ObjectOpenHashMap<List<RenderPass.Draw<GpuBufferSlice[]>>> existingGroups = original.drawGroupsPerLayer().get(layer);
+            if (existingGroups != null) {
+                existingGroups.forEach((key, draws) -> groups.put((int) key, new ArrayList<>(draws)));
+            }
+            drawGroupsPerLayer.put(layer, groups);
         }
 
         final int originalTransformCount = original.chunkSectionInfos().length;
         final List<DynamicUniforms.ChunkSectionInfo> transforms = new ArrayList<>();
         int maxIndicesRequired = original.maxIndicesRequired();
 
-        for (final ClientSubLevel subLevel : container.getAllSubLevels()) {
-            if (!(subLevel.getRenderData() instanceof final VanillaChunkedSubLevelRenderData renderData)) {
-                continue;
-            }
+        this.sectionRenderDispatcher.lock();
+        try {
+            for (final ClientSubLevel subLevel : container.getAllSubLevels()) {
+                if (!(subLevel.getRenderData() instanceof final VanillaChunkedSubLevelRenderData renderData)) {
+                    continue;
+                }
 
-            final Matrix4f modelView = new Matrix4f(baseModelView).mul(renderData.getTransformation(cameraX, cameraY, cameraZ));
-            final Vector3dc rotationPoint = subLevel.renderPose().rotationPoint();
+                final Matrix4f modelView = new Matrix4f(baseModelView).mul(renderData.getTransformation(cameraX, cameraY, cameraZ));
+                final Vector3dc rotationPoint = subLevel.renderPose().rotationPoint();
 
-            for (final SectionRenderDispatcher.RenderSection section : renderData.allRenderSections()) {
-                final SectionMesh mesh = section.getSectionMesh();
-                final BlockPos origin = section.getRenderOrigin();
-                final BlockPos worldOrigin = BlockPos.containing(subLevel.renderPose()
-                        .transformPosition(Vec3.atLowerCornerOf(origin)));
-                // Terrain now subtracts the camera through Globals before applying ModelViewMat.
-                // Cancel that offset in local coordinates; keep ChunkPosition near the physical
-                // section origin so vanilla fog measures distance in world space rather than plot space.
-                final Matrix4f sectionModelView = new Matrix4f(modelView).translate(
-                        (float) (origin.getX() - rotationPoint.x() + cameraX - worldOrigin.getX()),
-                        (float) (origin.getY() - rotationPoint.y() + cameraY - worldOrigin.getY()),
-                        (float) (origin.getZ() - rotationPoint.z() + cameraZ - worldOrigin.getZ()));
+                for (final SectionRenderDispatcher.RenderSection section : renderData.allRenderSections()) {
+                    final SectionMesh mesh = section.getSectionMesh();
+                    final BlockPos origin = section.getRenderOrigin();
+                    final BlockPos worldOrigin = BlockPos.containing(subLevel.renderPose()
+                            .transformPosition(Vec3.atLowerCornerOf(origin)));
+                    // Terrain now subtracts the camera through Globals before applying ModelViewMat.
+                    // Cancel that offset in local coordinates; keep ChunkPosition near the physical
+                    // section origin so vanilla fog measures distance in world space rather than plot space.
+                    final Matrix4f sectionModelView = new Matrix4f(modelView).translate(
+                            (float) (origin.getX() - rotationPoint.x() + cameraX - worldOrigin.getX()),
+                            (float) (origin.getY() - rotationPoint.y() + cameraY - worldOrigin.getY()),
+                            (float) (origin.getZ() - rotationPoint.z() + cameraZ - worldOrigin.getZ()));
 
-                for (final ChunkSectionLayer layer : ChunkSectionLayer.values()) {
-                    final SectionBuffers buffers = mesh.getBuffers(layer);
-                    if (buffers == null) {
-                        continue;
+                    int transformIndex = -1;
+                    for (final ChunkSectionLayer layer : ChunkSectionLayer.values()) {
+                        final SectionMesh.SectionDraw draw = mesh.getSectionDraw(layer);
+                        final SectionRenderDispatcher.RenderSectionBufferSlice slice = this.sectionRenderDispatcher.getRenderSectionSlice(mesh, layer);
+                        if (draw == null || slice == null || draw.hasCustomIndexBuffer() && slice.indexBuffer() == null) {
+                            continue;
+                        }
+
+                        if (transformIndex == -1) {
+                            transformIndex = originalTransformCount + transforms.size();
+                            transforms.add(new DynamicUniforms.ChunkSectionInfo(
+                                    sectionModelView,
+                                    worldOrigin.getX(), worldOrigin.getY(), worldOrigin.getZ(), 1.0F,
+                                    original.textureView().getWidth(0),
+                                    original.textureView().getHeight(0)
+                            ));
+                        }
+
+                        // Group by bound buffers the same way vanilla does, so draws sharing a pooled buffer batch together.
+                        final GpuBuffer vertexBuffer = slice.vertexBuffer();
+                        int groupKey = 173;
+                        if (layer != ChunkSectionLayer.TRANSLUCENT) {
+                            groupKey = 31 * groupKey + vertexBuffer.hashCode();
+                        }
+
+                        final GpuBuffer indexBuffer;
+                        final VertexFormat.IndexType indexType;
+                        int firstIndex = 0;
+                        if (!draw.hasCustomIndexBuffer()) {
+                            maxIndicesRequired = Math.max(maxIndicesRequired, draw.indexCount());
+                            indexBuffer = null;
+                            indexType = null;
+                        } else {
+                            indexBuffer = slice.indexBuffer();
+                            indexType = draw.indexType();
+                            if (layer != ChunkSectionLayer.TRANSLUCENT) {
+                                groupKey = 31 * groupKey + indexBuffer.hashCode();
+                                groupKey = 31 * groupKey + indexType.hashCode();
+                            }
+                            firstIndex = (int) (slice.indexBufferOffset() / indexType.bytes);
+                        }
+
+                        final int baseVertex = (int) (slice.vertexBufferOffset() / layer.pipeline().getVertexFormat().getVertexSize());
+                        final int sectionTransformIndex = transformIndex;
+                        drawGroupsPerLayer.get(layer).computeIfAbsent(groupKey, key -> new ArrayList<>()).add(new RenderPass.Draw<>(
+                                0,
+                                vertexBuffer,
+                                indexBuffer,
+                                indexType,
+                                firstIndex,
+                                draw.indexCount(),
+                                baseVertex,
+                                (chunkSectionInfos, uploader) -> uploader.upload("ChunkSection", chunkSectionInfos[sectionTransformIndex])
+                        ));
                     }
-
-                    final GpuBuffer indexBuffer;
-                    final VertexFormat.IndexType indexType;
-                    if (buffers.getIndexBuffer() == null) {
-                        maxIndicesRequired = Math.max(maxIndicesRequired, buffers.getIndexCount());
-                        indexBuffer = null;
-                        indexType = null;
-                    } else {
-                        indexBuffer = buffers.getIndexBuffer();
-                        indexType = buffers.getIndexType();
-                    }
-
-                    final int transformIndex = originalTransformCount + transforms.size();
-                    transforms.add(new DynamicUniforms.ChunkSectionInfo(
-                            sectionModelView,
-                            worldOrigin.getX(), worldOrigin.getY(), worldOrigin.getZ(), 1.0F,
-                            original.textureView().texture().getWidth(0),
-                            original.textureView().texture().getHeight(0)
-                    ));
-                    drawsPerLayer.get(layer).add(new RenderPass.Draw<>(
-                            0,
-                            buffers.getVertexBuffer(),
-                            indexBuffer,
-                            indexType,
-                            0,
-                            buffers.getIndexCount(),
-                            (chunkSectionInfos, uploader) -> uploader.upload("ChunkSection", chunkSectionInfos[transformIndex])
-                    ));
                 }
             }
+        } finally {
+            this.sectionRenderDispatcher.unlock();
         }
 
         if (transforms.isEmpty()) {
@@ -178,7 +218,7 @@ public abstract class LevelRendererMixin {
         final GpuBufferSlice[] additionalTransforms = RenderSystem.getDynamicUniforms().writeChunkSections(transforms.toArray(DynamicUniforms.ChunkSectionInfo[]::new));
         final GpuBufferSlice[] combinedTransforms = Arrays.copyOf(original.chunkSectionInfos(), originalTransformCount + additionalTransforms.length);
         System.arraycopy(additionalTransforms, 0, combinedTransforms, originalTransformCount, additionalTransforms.length);
-        cir.setReturnValue(new ChunkSectionsToRender(original.textureView(), drawsPerLayer, maxIndicesRequired, combinedTransforms));
+        cir.setReturnValue(new ChunkSectionsToRender(original.textureView(), drawGroupsPerLayer, maxIndicesRequired, combinedTransforms));
     }
 
     @Inject(method = "isSectionCompiledAndVisible", at = @At("HEAD"), cancellable = true)

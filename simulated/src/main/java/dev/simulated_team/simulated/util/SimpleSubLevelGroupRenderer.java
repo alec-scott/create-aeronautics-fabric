@@ -15,7 +15,7 @@ import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.PerspectiveProjectionMatrixBuffer;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
@@ -121,7 +121,7 @@ public class SimpleSubLevelGroupRenderer {
 
                     blockPoseStack.pushPose();
                     blockPoseStack.translate(blockPos.getX(), blockPos.getY(), blockPos.getZ());
-                    blockRenderer.renderSingleBlock(blockState, blockPoseStack, bufferSource, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+                    blockRenderer.renderSingleBlock(blockState, blockPoseStack, bufferSource, LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
                     blockPoseStack.popPose();
                 }
             }

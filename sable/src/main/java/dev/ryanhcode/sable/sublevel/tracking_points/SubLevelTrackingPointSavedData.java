@@ -50,7 +50,7 @@ public class SubLevelTrackingPointSavedData extends SavedData implements SubLeve
         // File moves from data/sable_tracking_points.dat to data/sable/sable_tracking_points.dat (namespaced id).
         return level.getDataStorage().computeIfAbsent(
                 new SavedDataType<>(
-                        SubLevelTrackingPointSavedData.FILE_ID,
+                        Identifier.fromNamespaceAndPath(Sable.MOD_ID, SubLevelTrackingPointSavedData.FILE_ID),
                         () -> new SubLevelTrackingPointSavedData(level),
                         CompoundTag.CODEC.xmap(
                                 tag -> SubLevelTrackingPointSavedData.load(level, tag),

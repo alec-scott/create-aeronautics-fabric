@@ -23,8 +23,8 @@ public abstract class AbstractMinecartMixin extends Entity {
 
     @Inject(method = "tick", at = @At("TAIL"))
     private void sable$postTick(final CallbackInfo ci) {
-        // PORT-NOTE(mc26.1): EntityType.is(TagKey) is gone; tag membership goes through Entity.getType().
-        if (!this.getType().is(SableTags.DESTROY_WHEN_LEAVING_PLOT)) {
+        // PORT-NOTE(mc26.1): EntityType.is(TagKey) is gone; check tags through the type's builtInRegistryHolder().
+        if (!this.getType().builtInRegistryHolder().is(SableTags.DESTROY_WHEN_LEAVING_PLOT)) {
             return;
         }
 
