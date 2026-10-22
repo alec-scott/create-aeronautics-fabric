@@ -28,9 +28,14 @@ dependencies {
     // -Psmoke_with_compat_mods=true also loads the optional mods Sable/Aeronautics have compat mixins for,
     // so the smoke tests' mixin audit covers those mixins too.
     if (project.findProperty('smoke_with_compat_mods') == 'true') {
-        productionRuntimeMods "maven.modrinth:sodium:${sodium_version}"
+        // -Psmoke_sodium_version=... runs against a different Sodium than the one compiled against.
+        productionRuntimeMods "maven.modrinth:sodium:${findProperty('smoke_sodium_version') ?: sodium_version}"
         productionRuntimeMods "maven.modrinth:iris:${iris_version}"
         productionRuntimeMods "maven.modrinth:scalablelux:${scalablelux_version}"
+    }
+    // -Psmoke_extra_mods=a.jar,b.jar adds arbitrary mod jars (e.g. a player's modpack) to the smoke tests.
+    if (project.findProperty('smoke_extra_mods')) {
+        productionRuntimeMods files(project.property('smoke_extra_mods').toString().split(','))
     }
 }
 

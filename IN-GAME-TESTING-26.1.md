@@ -44,11 +44,12 @@ The rendering checks (marked 🎨) need running once per pass. Everything else o
 | Pass | Extra mods | Why |
 |---|---|---|
 | **A** | none | Vanilla renderer: Sable's vanilla sub-level render path |
-| **B** | Sodium mc26.1.2-0.9.2 | Sable's separate Sodium render path |
+| **B** | Sodium 0.9.1 or 0.9.2 (+ ScalableLux, + Voxy if you use it) | Sable's separate Sodium render path |
 | **C** | Sodium + Iris 1.11.4+26.1 + a shader pack (e.g. Complementary) | Iris laser/burner queues, shader-compat ghost blocks |
 
 Optional-mod version rules (Sable's `fabric.mod.json` refuses to load otherwise):
-- **Sodium must be 0.9.2 or newer.** 0.9.1 is rejected; Sable's Sodium mixins were built against 0.9.2.
+- **Sodium must be 0.9.1 or newer.** Sable compiles against 0.9.1 and is smoke-tested on 0.9.1 and 0.9.2.
+  **Voxy** 0.2.18-beta requires exactly Sodium 0.9.1, so use 0.9.1 with Voxy.
 - **ScalableLux**, if you use it, must be between **0.2.0 and 0.3.0-alpha.0.2**. Sable patches its lighting
   engine, so each new ScalableLux version has to be checked before it is allowed (see PORTING-26.1.md, Tips).
   ScalableLux is worth adding to pass B: Sable has compat code for it, and section 2.2 (lighting) exercises it.
@@ -132,6 +133,10 @@ Place a **Physics Assembler** touching it, then hold right-click on the assemble
 - [ ] **2.14** Put a **sculk sensor** on the contraption and walk near it or drop an item. It activates, and the
   vibration particle travels to the right place.
   *Code:* sable `sculk_vibrations`.
+- [ ] **2.15** 🎨 (pass B with **Voxy**) Fly a contraption out past your normal render distance into Voxy's LOD
+  terrain. Note how the contraption behaves at that edge (whether it keeps rendering or disappears). Check there
+  is no flicker, z-fighting or holes in the terrain or the contraption anywhere along the way. Sable and Voxy both
+  patch Sodium's renderer: the smoke test proves they load together, not that they draw correctly together.
 
 ---
 

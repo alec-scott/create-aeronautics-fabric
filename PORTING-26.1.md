@@ -48,7 +48,7 @@ back to `maven.modrinth:create-fly:${create_fly_version}`.
 | jei_version | 27.44.0.104 | 29.47.0.110 |
 | computercraft_tweaked_version | 1.117.1 | `jEc1TrqE` (1.119.0, Modrinth id) |
 | natures / explorers compass | 1.21.11-2.5.x | 26.1-2.5.1-fabric |
-| sodium_version | mc1.21.11-0.8.14 | mc26.1.2-0.9.2-fabric |
+| sodium_version | mc1.21.11-0.8.14 | mc26.1.2-0.9.1-fabric (compile against the lowest supported; also verified on 0.9.2) |
 | iris_version | 1.10.8+1.21.11 | 1.11.4+26.1-fabric |
 | entityculling_version | CFBkR8Vm | VhQ51u7a (1.11.3) |
 | scalablelux_version | 0.1.6 | 0.2.0+fabric.2b63825 (runtime range 0.2.0 – 0.3.0-alpha.0.2) |
@@ -360,6 +360,9 @@ probably crashed if reached. What each use became:
 - **Smoke with optional mods:** add `-Psmoke_with_compat_mods=true` to either production smoke task to also load
   Sodium, Iris and ScalableLux, so the mixin audit covers Sable's/Aeronautics' compat mixins. Override a version
   with e.g. `"-Pscalablelux_version=0.3.0-alpha.0.2+26.1.2"`.
+- **Smoke with a player's own mods:** `-Psmoke_extra_mods=C:/path/a.jar,C:/path/b.jar` adds jars to either
+  smoke task. Combine with `-Psmoke_with_compat_mods=true`; `-Psmoke_sodium_version=mc26.1.2-0.9.2-fabric` runs
+  a different Sodium from the one compiled against. Voxy 0.2.18-beta + Sodium 0.9.1 + Iris + ScalableLux passes.
 - **Allowing a new ScalableLux version:** Sable's `fabric.mod.json` `breaks` pins ScalableLux to verified versions
   (currently 0.2.0 – 0.3.0-alpha.0.2). Two of its injections use `@ModifyVariable(index = N)`, which silently
   hit the wrong variable (wrong lighting, no crash) if the bytecode shifts. To allow a new version: download it,
