@@ -77,7 +77,7 @@ public final class SableCreateKineticRenderer {
                             state,
                             direction
                     ),
-                    BracketedKineticBlockEntityRenderer.getAngleForLargeCogShaft(
+                    largeCogShaftAngle(
                             kinetic,
                             axis
                     ),
@@ -175,5 +175,13 @@ public final class SableCreateKineticRenderer {
                 .rotateCentered(angle, direction)
                 .color(color)
                 .renderInto(poseStack.last(), consumer);
+    }
+
+    // PORT-NOTE(mc26.1): Create-Fly inlined getAngleForLargeCogShaft into its render state. Same formula as
+    // KineticBlockEntityRenderer.getAngleForBe, using the large-cog shaft offset.
+    private static float largeCogShaftAngle(final BracketedKineticBlockEntity kinetic, final Direction.Axis axis) {
+        final float time = AnimationTickHolder.getRenderTime(kinetic.getLevel());
+        final float offset = BracketedKineticBlockEntityRenderer.getShaftAngleOffset(axis, kinetic.getBlockPos());
+        return (time * kinetic.getSpeed() * 0.3f + offset) % 360 * Mth.DEG_TO_RAD;
     }
 }

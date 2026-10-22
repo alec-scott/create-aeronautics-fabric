@@ -7,10 +7,10 @@ import dev.ryanhcode.sable.sublevel.plot.LevelPlot;
 import dev.simulated_team.simulated.content.entities.diagram.DiagramConfig;
 import dev.simulated_team.simulated.index.SimGUITextures;
 import dev.simulated_team.simulated.index.SimSoundEvents;
-import foundry.veil.api.client.render.VeilLevelPerspectiveRenderer;
-import foundry.veil.api.client.render.framebuffer.AdvancedFbo;
+import dev.simulated_team.simulated.content.entities.diagram.render.DiagramFramebuffers;
+import dev.simulated_team.simulated.util.SimpleSubLevelGroupRenderer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.sounds.SoundManager;
@@ -45,9 +45,7 @@ public class DiagramStickyNote extends DiagramButton {
     private float lastOffset = MIN_OFFSET;
     private float currentOffset = MIN_OFFSET;
 
-    private AdvancedFbo fbo;
-    private AdvancedFbo outlineFbo;
-    private AdvancedFbo finalFbo;
+    private DiagramFramebuffers targets;
 
     private float renderTime = 0;
     private final int renderXStart;
@@ -90,9 +88,7 @@ public class DiagramStickyNote extends DiagramButton {
     }
 
     public void create(final DiagramConfig.NoteConfigs noteConfigs) {
-        this.fbo = AdvancedFbo.withSize(SUBLEVEL_RENDER_WIDTH_PIXELS, SUBLEVEL_RENDER_HEIGHT_PIXELS).addColorTextureBuffer().setDepthTextureBuffer().build(true);
-        this.outlineFbo = AdvancedFbo.withSize(SUBLEVEL_RENDER_WIDTH_PIXELS, SUBLEVEL_RENDER_HEIGHT_PIXELS).addColorTextureBuffer().build(true);
-        this.finalFbo = AdvancedFbo.withSize(SUBLEVEL_RENDER_WIDTH_PIXELS, SUBLEVEL_RENDER_HEIGHT_PIXELS).addColorTextureBuffer().build(true);
+        this.targets = new DiagramFramebuffers("sticky note", SUBLEVEL_RENDER_WIDTH_PIXELS, SUBLEVEL_RENDER_HEIGHT_PIXELS);
 
         this.active = noteConfigs.isActive();
         this.updateOrientation();
@@ -109,15 +105,9 @@ public class DiagramStickyNote extends DiagramButton {
         this.deactivate();
 
         NOTE_ORIENTATION.set(0, 0, 0, 0);
-        if (this.fbo != null) {
-            this.fbo.free();
-            this.fbo = null;
-
-            this.outlineFbo.free();
-            this.outlineFbo = null;
-
-            this.finalFbo.free();
-            this.finalFbo = null;
+        if (this.targets != null) {
+            this.targets.close();
+            this.targets = null;
         }
 
         this.parent = null;
@@ -178,7 +168,7 @@ public class DiagramStickyNote extends DiagramButton {
     }
 
     @Override
-    protected void renderWidget(final GuiGraphics guiGraphics, final int mouseX, final int mouseY, final float partialTicks) {
+    protected void extractWidgetRenderState(final GuiGraphicsExtractor guiGraphics, final int mouseX, final int mouseY, final float partialTicks) {
         final Matrix3x2fStack ps = guiGraphics.pose();
         ps.pushMatrix();
 
@@ -190,9 +180,9 @@ public class DiagramStickyNote extends DiagramButton {
         if (this.active) {
             ps.pushMatrix();
             ps.translate(SUBLEVEL_RENDER_X_OFFSET, SUBLEVEL_RENDER_Y_OFFSET);
-            if (!VeilLevelPerspectiveRenderer.isRenderingPerspective() && this.fbo != null) {
+            if (!SimpleSubLevelGroupRenderer.RENDERING_SIMPLE && this.targets != null) {
                 this.populateFBO(partialTicks);
-                DiagramScreen.renderFBO(guiGraphics, this.finalFbo, SUBLEVEL_RENDER_WIDTH_PIXELS, SUBLEVEL_RENDER_HEIGHT_PIXELS);
+                DiagramScreen.renderFBO(guiGraphics, this.targets, SUBLEVEL_RENDER_WIDTH_PIXELS, SUBLEVEL_RENDER_HEIGHT_PIXELS);
             }
 
             this.parent.renderArrows(guiGraphics,
@@ -244,7 +234,7 @@ public class DiagramStickyNote extends DiagramButton {
         final Pose3dc renderPose = this.parent.subLevel.renderPose(partialTicks);
         renderPose.transformPosition(NOTE_CAMERA_POS.set(NOTE_LOCAL_CAM_POS));
 
-        DiagramScreen.draw(this.parent.subLevel, partialTicks, NOTE_ORIENTATION, NOTE_PROJ_MAT, NOTE_CAMERA_POS, SUBLEVEL_RENDER_WIDTH_PIXELS, SUBLEVEL_RENDER_HEIGHT_PIXELS, this.fbo, this.outlineFbo, this.finalFbo, 0.75f, 1.15f, 0x6e684d, 0x59543e);
+        DiagramScreen.draw(this.parent.subLevel, partialTicks, NOTE_ORIENTATION, NOTE_PROJ_MAT, NOTE_CAMERA_POS, SUBLEVEL_RENDER_WIDTH_PIXELS, SUBLEVEL_RENDER_HEIGHT_PIXELS, this.targets, 0.75f, 1.15f, 0x6e684d, 0x59543e);
     }
 
     @Override
@@ -252,7 +242,7 @@ public class DiagramStickyNote extends DiagramButton {
 
     }
 
-    private void renderCustomCOM(final GuiGraphics guiGraphics, final Matrix3x2fStack stack) {
+    private void renderCustomCOM(final GuiGraphicsExtractor guiGraphics, final Matrix3x2fStack stack) {
         if (this.parent.config.displayCenterOfMass()) {
             stack.pushMatrix();
             final Vector3d centerOfMass = new Vector3d(this.parent.subLevel.logicalPose().rotationPoint());

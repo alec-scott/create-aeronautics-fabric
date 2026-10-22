@@ -1,5 +1,6 @@
 package dev.simulated_team.simulated.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.zurrtum.create.client.AllKeys;
 import com.zurrtum.create.content.equipment.goggles.GogglesItem;
 import dev.ryanhcode.sable.mixinterface.block_properties.BlockStateExtension;
@@ -64,7 +65,7 @@ public class BlockPropertiesTooltip {
             return condition.allows();
         }
 
-        return condition.test(AllKeys.isKeyDown(GLFW.GLFW_KEY_LEFT_SHIFT), GogglesItem.isWearingGoggles(player));
+        return condition.test(InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_LEFT_SHIFT), GogglesItem.isWearingGoggles(player));
     }
 
     public static void register(final SimulatedRegistrate registrate, final String name, final TooltipFunction tooltipFunction, final float priority) {

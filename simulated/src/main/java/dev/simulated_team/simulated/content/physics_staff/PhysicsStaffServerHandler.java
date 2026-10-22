@@ -1,5 +1,7 @@
 package dev.simulated_team.simulated.content.physics_staff;
 
+import dev.simulated_team.simulated.Simulated;
+import net.minecraft.resources.Identifier;
 import com.mojang.serialization.Codec;
 import dev.ryanhcode.sable.api.physics.PhysicsPipeline;
 import dev.ryanhcode.sable.api.physics.constraint.ConstraintJointAxis;
@@ -48,7 +50,7 @@ public class PhysicsStaffServerHandler extends SavedData {
     public static final String ID = "simulated_physics_staff_lock_data";
     private static final Codec<List<UUID>> LOCKS_CODEC = UUIDUtil.CODEC.listOf();
     private static final SavedDataType<PhysicsStaffServerHandler> TYPE = new SavedDataType<>(
-            ID,
+            Identifier.fromNamespaceAndPath(Simulated.MOD_ID, ID),
             PhysicsStaffServerHandler::new,
             LOCKS_CODEC.fieldOf(ID).codec().xmap(
                     locks -> create(null, locks),

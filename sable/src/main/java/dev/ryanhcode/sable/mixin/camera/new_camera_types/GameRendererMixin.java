@@ -20,8 +20,13 @@ public class GameRendererMixin {
 
     @Shadow @Final private Minecraft minecraft;
 
-    @Inject(method = "updateCamera", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setup(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/Entity;ZZF)V", shift = At.Shift.BEFORE))
-    public void sable$setupCamera(final DeltaTracker deltaTracker, final CallbackInfo ci) {
+    // PORT-NOTE(mc26.1): GameRenderer.updateCamera -> camera.setup(...) became update(...) -> camera.update(deltaTracker).
+    // It now also runs without a level, so bail out when there is no camera entity (the old path never ran then).
+    @Inject(method = "update", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;update(Lnet/minecraft/client/DeltaTracker;)V", shift = At.Shift.BEFORE))
+    public void sable$setupCamera(final DeltaTracker deltaTracker, final boolean advanceGameTime, final CallbackInfo ci) {
+        if (this.minecraft.getCameraEntity() == null) {
+            return;
+        }
         final CameraType cameraType = this.minecraft.options.getCameraType();
 
         if (cameraType == SableCameraTypes.SUB_LEVEL_VIEW || cameraType == SableCameraTypes.SUB_LEVEL_VIEW_UNLOCKED) {

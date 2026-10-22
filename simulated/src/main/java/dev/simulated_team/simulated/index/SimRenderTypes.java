@@ -3,7 +3,13 @@ package dev.simulated_team.simulated.index;
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.DestFactor;
-import com.mojang.blaze3d.platform.DepthTestFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
+import com.mojang.blaze3d.platform.CompareOp;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.AddressMode;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuSampler;
 import com.mojang.blaze3d.platform.SourceFactor;
 import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -18,7 +24,17 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.resources.Identifier;
 
+import java.util.Optional;
+import java.util.function.Supplier;
+
 public final class SimRenderTypes {
+
+    // PORT-NOTE(mc26.1): depth test/write and blending moved into DepthStencilState and ColorTargetState.
+    private static final DepthStencilState DEPTH_TEST_NO_WRITE = new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false);
+
+    // PORT-NOTE(mc26.1): RenderTypes.MOVING_BLOCK_SAMPLER was inlined into vanilla's moving-block setup; same sampler.
+    private static final Supplier<GpuSampler> MOVING_BLOCK_SAMPLER = () -> RenderSystem.getSamplerCache()
+            .getSampler(AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.LINEAR, FilterMode.NEAREST, true);
 
     // Split translucent laser composition into two commutative operations.
     // This keeps intersecting colors stable when camera-based quad order flips.
@@ -64,10 +80,9 @@ public final class SimRenderTypes {
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)
             .withSampler("Sampler0")
-            .withBlend(BlendFunction.TRANSLUCENT)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
             .withCull(false)
-            .withDepthWrite(false)
-            .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+            .withDepthStencilState(Optional.empty())
             .withVertexFormat(DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP, VertexFormat.Mode.QUADS)
             .build();
 
@@ -79,7 +94,7 @@ public final class SimRenderTypes {
     private static final RenderType STAFF_SELECTION_EDGE = create(
             "simulated_staff_selection_edge", RenderPipelines.LIGHTNING);
     private static final RenderType STAFF_SELECTION_FACE = RenderType.create(
-            "simulated_staff_selection_face", RenderSetup.builder(RenderPipelines.ITEM_ENTITY_TRANSLUCENT_CULL)
+            "simulated_staff_selection_face", RenderSetup.builder(RenderPipelines.ENTITY_TRANSLUCENT_CULL)
                     .withTexture("Sampler0", AllSpecialTextures.CHECKERED.getLocation())
                     .useLightmap().useOverlay().createRenderSetup());
     private static final RenderType LASER = createSorted(
@@ -103,13 +118,13 @@ public final class SimRenderTypes {
 
     // Iris cannot classify mod-defined terrain pipelines. A vanilla entity
     // pipeline keeps the standalone rope texture visible in shader passes.
-    private static final RenderType ROPE = net.minecraft.client.renderer.rendertype.RenderTypes.entityCutoutNoCull(
+    private static final RenderType ROPE = net.minecraft.client.renderer.rendertype.RenderTypes.entityCutout(
             Simulated.path("textures/block/rope_particle.png"));
 
     private static final RenderType BLOCK_TRANSLUCENT = RenderType.create(
             "simulated_block_translucent", RenderSetup.builder(BLOCK_TRANSLUCENT_PIPELINE)
                     .withTexture("Sampler0", TextureAtlas.LOCATION_BLOCKS,
-                            net.minecraft.client.renderer.rendertype.RenderTypes.MOVING_BLOCK_SAMPLER)
+                            MOVING_BLOCK_SAMPLER)
                     .useLightmap().createRenderSetup());
 
     /**
@@ -124,7 +139,7 @@ public final class SimRenderTypes {
     private static final RenderType GHOST_BLOCK = RenderType.create(
             "simulated_ghost_block", RenderSetup.builder(RenderPipelines.TRANSLUCENT_PARTICLE)
                     .withTexture("Sampler0", TextureAtlas.LOCATION_BLOCKS,
-                            net.minecraft.client.renderer.rendertype.RenderTypes.MOVING_BLOCK_SAMPLER)
+                            MOVING_BLOCK_SAMPLER)
                     .useLightmap().createRenderSetup());
 
     private SimRenderTypes() {
@@ -138,9 +153,9 @@ public final class SimRenderTypes {
                 .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
                 .withUniform("Projection", UniformType.UNIFORM_BUFFER)
                 .withUniform("Fog", UniformType.UNIFORM_BUFFER)
-                .withBlend(BlendFunction.TRANSLUCENT)
+                .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
                 .withCull(false)
-                .withDepthWrite(depthWrite)
+                .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, depthWrite))
                 .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS)
                 .build());
     }
@@ -153,9 +168,9 @@ public final class SimRenderTypes {
                 .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
                 .withUniform("Projection", UniformType.UNIFORM_BUFFER)
                 .withUniform("Fog", UniformType.UNIFORM_BUFFER)
-                .withBlend(BlendFunction.LIGHTNING)
+                .withColorTargetState(new ColorTargetState(BlendFunction.LIGHTNING))
                 .withCull(false)
-                .withDepthWrite(false)
+                .withDepthStencilState(DEPTH_TEST_NO_WRITE)
                 .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS)
                 .build());
     }
@@ -168,9 +183,9 @@ public final class SimRenderTypes {
                 .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
                 .withUniform("Projection", UniformType.UNIFORM_BUFFER)
                 .withUniform("Fog", UniformType.UNIFORM_BUFFER)
-                .withBlend(blend)
+                .withColorTargetState(new ColorTargetState(blend))
                 .withCull(false)
-                .withDepthWrite(false)
+                .withDepthStencilState(DEPTH_TEST_NO_WRITE)
                 .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS)
                 .build());
     }
@@ -190,7 +205,7 @@ public final class SimRenderTypes {
                 .withShaderDefine("ALPHA_CUTOUT", 0.1f)
                 .withVertexFormat(format, VertexFormat.Mode.QUADS);
         if (translucent) {
-            builder.withBlend(BlendFunction.TRANSLUCENT).withDepthWrite(false);
+            builder.withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT)).withDepthStencilState(DEPTH_TEST_NO_WRITE);
         }
         return builder.build();
     }
@@ -261,7 +276,7 @@ public final class SimRenderTypes {
     }
 
     public static RenderType itemGlowingSolid(boolean shadersActive) {
-        return shadersActive ? Sheets.solidBlockSheet() : CreateRenderTypes.itemGlowingSolid();
+        return shadersActive ? Sheets.cutoutBlockSheet() : CreateRenderTypes.itemGlowingSolid();
     }
 
     public static RenderType itemGlowingTranslucent(boolean shadersActive) {

@@ -1,14 +1,6 @@
 package dev.simulated_team.simulated.content.end_sea;
 
 import dev.simulated_team.simulated.content.blocks.void_anchor.VoidAnchorBlockEntity;
-import foundry.veil.api.client.render.MatrixStack;
-import foundry.veil.api.event.VeilRenderLevelStageEvent;
-import net.minecraft.client.Camera;
-import net.minecraft.client.DeltaTracker;
-import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.culling.Frustum;
-import org.joml.Matrix4fc;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
 
@@ -39,9 +31,4 @@ public final class EndSeaShadowRenderer {
     public static void addVoidAnchor(VoidAnchorBlockEntity anchor) {
     }
 
-    public static void renderShadowMap(VeilRenderLevelStageEvent.Stage stage, LevelRenderer levelRenderer,
-                                       MultiBufferSource.BufferSource bufferSource, MatrixStack poseStack,
-                                       Matrix4fc frustumMatrix, Matrix4fc projectionMatrix, int renderTick,
-                                       DeltaTracker deltaTracker, Camera camera, Frustum frustum) {
-    }
 }

@@ -21,6 +21,8 @@ sourceSets {
             exclude 'dev/eriksonn/aeronautics/mixin/render/sodium/DefaultMaterialsMixin.java'
             exclude 'dev/eriksonn/aeronautics/mixin/render/sodium/SodiumWorldRendererMixin.java'
             exclude 'dev/eriksonn/aeronautics/mixin/render/iris/WorldRenderingPhaseMixin.java'
+            // PORT-NOTE(mc26.1): unused Veil-based effect; Veil was removed (see PORTING-26.1.md, Veil replacement).
+            exclude 'dev/eriksonn/aeronautics/content/blocks/hot_air/balloon/effect/ClientBalloonEffectRenderer.java'
         }
         resources {
             srcDir 'src/generated/resources'
@@ -65,13 +67,8 @@ dependencies {
     compileOnly "com.google.code.findbugs:jsr305:3.0.2"
     compileOnly "org.jspecify:jspecify:1.0.0"
 
-    compileOnly("foundry.veil:veil-fabric-1.21.1:${veil_version}") { transitive = false }
     compileOnly "org.projectlombok:lombok:1.18.42"
     annotationProcessor "org.projectlombok:lombok:1.18.42"
-    compileOnly "io.github.fabricators_of_create.Porting-Lib:tags:3.1.0-beta.39+1.21.1"
-    compileOnly "io.github.fabricators_of_create.Porting-Lib:models:3.1.0-beta.39+1.21.1"
-    compileOnly "io.github.fabricators_of_create.Porting-Lib:data:3.1.0-beta.39+1.21.1"
-    compileOnly "io.github.fabricators_of_create.Porting-Lib:lazy_registration:3.1.0-beta.39+1.21.1"
     compileOnly "maven.modrinth:jei:${jei_version}"
     compileOnly "maven.modrinth:natures-compass:${natures_compass_version}"
     compileOnly "maven.modrinth:explorers-compass:${explorers_compass_version}"

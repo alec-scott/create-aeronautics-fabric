@@ -1,5 +1,6 @@
 package dev.simulated_team.simulated.content.blocks.steering_wheel;
 
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import com.zurrtum.create.client.AllPartialModels;
 import com.zurrtum.create.client.content.kinetics.base.KineticBlockEntityVisual;
 import com.zurrtum.create.client.content.kinetics.base.RotatingInstance;
@@ -15,7 +16,6 @@ import com.zurrtum.create.client.flywheel.lib.model.baked.BakedModelBuilder;
 import com.zurrtum.create.client.flywheel.lib.util.RendererReloadCache;
 import com.zurrtum.create.client.flywheel.lib.visual.SimpleDynamicVisual;
 import dev.simulated_team.simulated.index.SimPartialModels;
-import net.minecraft.client.renderer.block.model.SimpleModelWrapper;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
@@ -125,7 +125,7 @@ public class SteeringWheelVisual extends KineticBlockEntityVisual<SteeringWheelB
     }
 
     private static Model generateModel(final SteeringWheelRenderer.ModelKey modelKey) {
-        final SimpleModelWrapper bakedModel = SteeringWheelRenderer.generateModel(SimPartialModels.STEERING_WHEEL.get(), modelKey.material());
+        final BlockStateModel bakedModel = SteeringWheelRenderer.generateModel(SimPartialModels.STEERING_WHEEL.get(), modelKey.material());
         return new BakedModelBuilder(bakedModel).build();
     }
 }

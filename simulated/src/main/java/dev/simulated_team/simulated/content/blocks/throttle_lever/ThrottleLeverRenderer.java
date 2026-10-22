@@ -6,6 +6,7 @@ import com.zurrtum.create.content.redstone.analogLever.AnalogLeverBlock;
 import dev.simulated_team.simulated.compat.create.SafeBlockEntityRenderer;
 import com.zurrtum.create.client.flywheel.api.visualization.VisualizationManager;
 import com.zurrtum.create.client.flywheel.lib.transform.PoseTransformStack;
+import com.zurrtum.create.client.flywheel.lib.transform.Transform;
 import com.zurrtum.create.client.flywheel.lib.transform.TransformStack;
 import dev.simulated_team.simulated.index.SimBlocks;
 import dev.simulated_team.simulated.index.SimPartialModels;
@@ -120,7 +121,9 @@ public class ThrottleLeverRenderer extends SafeBlockEntityRenderer<ThrottleLever
         ms.popPose();
     }
 
-    private <T extends TransformStack<T>> TransformStack<T> transformHandleExternal(final TransformStack<T> buffer, final float angle, final AttachFace face) {
+    // PORT-NOTE(mc26.1): SuperByteBuffer is a Transform rather than a TransformStack now; these helpers only need
+    // Transform operations, so they accept either.
+    private <T extends Transform<T>> T transformHandleExternal(final T buffer, final float angle, final AttachFace face) {
         return buffer
                 .translate(1 / 2f, 3 / 16f, 1 / 2f)
                 .rotateX(angle)
@@ -128,7 +131,7 @@ public class ThrottleLeverRenderer extends SafeBlockEntityRenderer<ThrottleLever
                 .rotateCentered(face == AttachFace.WALL ? (float) Math.PI : 0.0f, Direction.UP);
     }
 
-    private static  <T extends TransformStack<T>> TransformStack<T> transform(final TransformStack<T> buffer, final BlockState leverState) {
+    private static <T extends Transform<T>> T transform(final T buffer, final BlockState leverState) {
         final AttachFace attached = leverState.getValue(AnalogLeverBlock.FACE);
         final Direction facing = leverState.getValue(AnalogLeverBlock.FACING);
 

@@ -1,5 +1,6 @@
 package dev.simulated_team.simulated.index;
 
+import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.zurrtum.create.client.AllKeys;
 import dev.simulated_team.simulated.Simulated;
@@ -59,7 +60,7 @@ public enum SimKeys {
 
 	public boolean isPressed() {
 		if (!this.modifiable)
-			return AllKeys.isKeyDown(this.key);
+			return InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), this.key);
 		return this.keybind != null && this.keybind.isDown();
 	}
 

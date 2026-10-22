@@ -1,6 +1,5 @@
 package dev.simulated_team.simulated.mixin.world_presets;
 
-import com.llamalad7.mixinextras.sugar.Local;
 import dev.simulated_team.simulated.content.worldgen.SimulatedWorldPreset;
 import dev.simulated_team.simulated.index.SimWorldPresets;
 import dev.simulated_team.simulated.mixin_interface.PrimaryLevelDataExtension;
@@ -10,7 +9,9 @@ import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.gamerules.GameRules;
-import net.minecraft.world.level.dimension.end.EndDragonFight;
+import net.minecraft.core.LayeredRegistryAccess;
+import net.minecraft.server.RegistryLayer;
+import net.minecraft.world.level.storage.LevelDataAndDimensions;
 import net.minecraft.world.level.levelgen.presets.WorldPreset;
 import net.minecraft.world.level.storage.WorldData;
 import org.spongepowered.asm.mixin.Final;
@@ -50,8 +51,14 @@ public abstract class CreateWorldScreenMixin {
         }
     }
 
+    // PORT-NOTE(mc26.1): the WorldData now arrives as part of the WorldDataAndGenSettings argument rather than a
+    // local, and the End Sea dragon fight is seeded in ServerLevelMixin (it became End saved data).
     @Inject(method = "createNewWorld", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;createWorldOpenFlows()Lnet/minecraft/client/gui/screens/worldselection/WorldOpenFlows;", shift = At.Shift.BEFORE))
-    private void simulated$createNewWorld2(final CallbackInfoReturnable<Boolean> cir, @Local final WorldData worldData) {
+    private void simulated$createNewWorld2(final LayeredRegistryAccess<RegistryLayer> finalLayers,
+                                           final LevelDataAndDimensions.WorldDataAndGenSettings worldDataAndGenSettings,
+                                           final Optional<GameRules> gameRules,
+                                           final CallbackInfoReturnable<Boolean> cir) {
+        final WorldData worldData = worldDataAndGenSettings.data();
         final Holder<WorldPreset> holder = this.uiState.getWorldType().preset();
         if (holder == null) {
             return;
@@ -63,8 +70,5 @@ public abstract class CreateWorldScreenMixin {
         }
 
         ((PrimaryLevelDataExtension) worldData).setPreset(key.get().identifier());
-        if (holder.is(SimWorldPresets.END_SEA.id())) {
-            ((PrimaryLevelDataExtension) worldData).setEndDragonFight(new EndDragonFight.Data(false, true, true, false, Optional.empty(), Optional.empty(), Optional.empty()));
-        }
     }
 }

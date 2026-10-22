@@ -1,6 +1,7 @@
 package dev.simulated_team.simulated.compat.create;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.QuadInstance;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.zurrtum.create.client.content.kinetics.fan.EncasedFanRenderer;
 import com.zurrtum.create.client.content.processing.burner.BlazeBurnerRenderer;
@@ -12,20 +13,24 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.geom.ModelPart;
-import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.OrderedSubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.block.BlockQuadOutput;
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
 import net.minecraft.client.renderer.block.MovingBlockRenderState;
-import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
-import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.feature.ItemFeatureRenderer;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer.CrumblingOverlay;
+import net.minecraft.core.Direction;
 import net.minecraft.client.renderer.item.ItemStackRenderState.FoilType;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -100,11 +105,6 @@ public final class SableCreateBlockEntityRenderer {
             // Sable samples light around the transformed physical block. Keep
             // that result instead of the plot-space light extracted by vanilla.
             renderState.lightCoords = light;
-            if (renderState
-                    instanceof final EncasedFanRenderer.EncasedFanRenderState fanState) {
-                fanState.lightBehind = light;
-                fanState.lightInFront = light;
-            }
 
             // An empty burner has no dynamic blaze geometry. Create's renderer
             // leaves a freshly allocated state empty in that case.
@@ -125,7 +125,6 @@ public final class SableCreateBlockEntityRenderer {
     ) {
         final CameraRenderState state = new CameraRenderState();
         state.pos = localCameraPosition;
-        state.entityPos = localCameraPosition;
         state.blockPos = BlockPos.containing(localCameraPosition);
         state.initialized = camera.isInitialized();
         state.orientation = new Quaternionf(renderPose.orientation())
@@ -140,6 +139,9 @@ public final class SableCreateBlockEntityRenderer {
      * so execute each submitted piece as it arrives.
      */
     private static final class ImmediateCollector implements SubmitNodeCollector {
+        private static final Direction[] DIRECTIONS = Direction.values();
+
+        private final QuadInstance quadInstance = new QuadInstance();
         private final MultiBufferSource bufferSource;
         private final int fallbackLight;
         private final int fallbackOverlay;
@@ -171,6 +173,7 @@ public final class SableCreateBlockEntityRenderer {
             );
         }
 
+        // PORT-NOTE(mc26.1): items no longer pass a RenderType; each quad carries its own, as in ItemFeatureRenderer.
         @Override
         public void submitItem(
                 final PoseStack poseStack,
@@ -180,20 +183,18 @@ public final class SableCreateBlockEntityRenderer {
                 final int outlineColor,
                 final int[] tintLayers,
                 final List<BakedQuad> quads,
-                final RenderType renderType,
                 final FoilType foilType
         ) {
-            ItemRenderer.renderItem(
-                    displayContext,
-                    poseStack,
-                    this.bufferSource,
-                    light,
-                    overlay,
-                    tintLayers,
-                    quads,
-                    renderType,
-                    foilType
-            );
+            final PoseStack.Pose pose = poseStack.last();
+            this.quadInstance.setLightCoords(light);
+            this.quadInstance.setOverlayCoords(overlay);
+            for (final BakedQuad quad : quads) {
+                final BakedQuad.MaterialInfo material = quad.materialInfo();
+                this.quadInstance.setColor(tintColor(tintLayers, material.tintIndex()));
+                ItemFeatureRenderer.getFoilBuffer(this.bufferSource, material.itemRenderType(), true,
+                                foilType != FoilType.NONE)
+                        .putBakedQuad(pose, quad, this.quadInstance);
+            }
         }
 
         @Override
@@ -217,6 +218,8 @@ public final class SableCreateBlockEntityRenderer {
             model.renderToBuffer(poseStack, consumer, light, overlay, color);
         }
 
+        // PORT-NOTE(mc26.1): the trailing parameters were reordered (tint colour before crumbling, outline last)
+        // and foil is now passed through instead of render-front/back flags.
         @Override
         public void submitModelPart(
                 final ModelPart modelPart,
@@ -225,79 +228,91 @@ public final class SableCreateBlockEntityRenderer {
                 final int light,
                 final int overlay,
                 final TextureAtlasSprite sprite,
-                final boolean renderFront,
-                final boolean renderBack,
-                final int outlineColor,
+                final boolean sheeted,
+                final boolean hasFoil,
+                final int tintedColor,
                 final CrumblingOverlay crumblingOverlay,
-                final int color
+                final int outlineColor
         ) {
-            VertexConsumer consumer = this.bufferSource.getBuffer(renderType);
+            VertexConsumer consumer = ItemFeatureRenderer.getFoilBuffer(this.bufferSource, renderType, sheeted, hasFoil);
             if (sprite != null) {
                 consumer = sprite.wrap(consumer);
             }
-            modelPart.render(poseStack, consumer, light, overlay, color);
+            modelPart.render(poseStack, consumer, light, overlay, tintedColor);
         }
 
-        @Override
-        public void submitBlock(
-                final PoseStack poseStack,
-                final BlockState blockState,
-                final int light,
-                final int overlay,
-                final int outlineColor
-        ) {
-            Minecraft.getInstance()
-                    .getBlockRenderer()
-                    .renderSingleBlock(
-                            blockState,
-                            poseStack,
-                            this.bufferSource,
-                            light,
-                            overlay
-                    );
-        }
-
+        // PORT-NOTE(mc26.1): BlockRenderDispatcher.renderSingleBlock is gone; tesselate like vanilla's
+        // BlockFeatureRenderer does for moving blocks.
         @Override
         public void submitMovingBlock(
                 final PoseStack poseStack,
                 final MovingBlockRenderState renderState
         ) {
-            final int light = renderState.blockPos != null
-                    ? LevelRenderer.getLightCoords(renderState, renderState.blockPos)
-                    : this.fallbackLight;
-            Minecraft.getInstance()
-                    .getBlockRenderer()
-                    .renderSingleBlock(
-                            renderState.blockState,
-                            poseStack,
-                            this.bufferSource,
-                            light,
-                            this.fallbackOverlay
-                    );
+            final Minecraft minecraft = Minecraft.getInstance();
+            final BlockState blockState = renderState.blockState;
+            final BlockQuadOutput output = (x, y, z, quad, instance) -> {
+                poseStack.pushPose();
+                poseStack.translate(x, y, z);
+                this.bufferSource.getBuffer(movingBlockRenderType(quad.materialInfo().layer()))
+                        .putBakedQuad(poseStack.last(), quad, instance);
+                poseStack.popPose();
+            };
+            new ModelBlockRenderer(minecraft.options.ambientOcclusion().get(), false, minecraft.getBlockColors())
+                    .tesselateBlock(output, 0.0F, 0.0F, 0.0F, renderState, renderState.blockPos, blockState,
+                            minecraft.getModelManager().getBlockStateModelSet().get(blockState),
+                            blockState.getSeed(renderState.randomSeedPos));
         }
 
+        // PORT-NOTE(mc26.1): block models are submitted as resolved parts plus tint layers.
         @Override
         public void submitBlockModel(
                 final PoseStack poseStack,
                 final RenderType renderType,
-                final BlockStateModel model,
-                final float red,
-                final float green,
-                final float blue,
+                final List<BlockStateModelPart> parts,
+                final int[] tintLayers,
                 final int light,
                 final int overlay,
                 final int outlineColor
         ) {
-            ModelBlockRenderer.renderModel(
-                    poseStack.last(),
-                    this.bufferSource.getBuffer(renderType),
-                    model,
-                    red,
-                    green,
-                    blue,
-                    light,
-                    overlay
-            );
+            final VertexConsumer buffer = this.bufferSource.getBuffer(renderType);
+            final PoseStack.Pose pose = poseStack.last();
+            this.quadInstance.setLightCoords(light);
+            this.quadInstance.setOverlayCoords(overlay);
+            for (final BlockStateModelPart part : parts) {
+                for (final Direction direction : DIRECTIONS) {
+                    this.putQuads(part.getQuads(direction), pose, tintLayers, buffer);
+                }
+                this.putQuads(part.getQuads(null), pose, tintLayers, buffer);
+            }
+        }
+
+        @Override
+        public void submitBreakingBlockModel(
+                final PoseStack poseStack,
+                final BlockStateModel model,
+                final long seed,
+                final int progress
+        ) {
+        }
+
+        private void putQuads(final List<BakedQuad> quads, final PoseStack.Pose pose, final int[] tintLayers,
+                              final VertexConsumer buffer) {
+            for (final BakedQuad quad : quads) {
+                this.quadInstance.setColor(tintColor(tintLayers, quad.materialInfo().tintIndex()));
+                buffer.putBakedQuad(pose, quad, this.quadInstance);
+            }
+        }
+
+        private static int tintColor(final int[] tintLayers, final int tintIndex) {
+            return tintIndex >= 0 && tintIndex < tintLayers.length ? tintLayers[tintIndex] : -1;
+        }
+
+        private static RenderType movingBlockRenderType(final ChunkSectionLayer layer) {
+            return switch (layer) {
+                case SOLID -> RenderTypes.solidMovingBlock();
+                case CUTOUT -> RenderTypes.cutoutMovingBlock();
+                case TRANSLUCENT -> RenderTypes.translucentMovingBlock();
+            };
         }
 
         @Override
@@ -329,9 +344,9 @@ public final class SableCreateBlockEntityRenderer {
                 final FormattedCharSequence text,
                 final boolean dropShadow,
                 final Font.DisplayMode displayMode,
-                final int backgroundColor,
                 final int light,
                 final int color,
+                final int backgroundColor,
                 final int outlineColor
         ) {
         }

@@ -1,5 +1,6 @@
 package dev.simulated_team.simulated.content.blocks.lasers.laser_sensor;
 
+import net.minecraft.core.component.DataComponents;
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.simulated_team.simulated.compat.create.SmartBlockEntity;
 import com.zurrtum.create.api.behaviour.BlockEntityBehaviour;
@@ -143,7 +144,7 @@ public class LaserSensorBlockEntity extends SmartBlockEntity implements Clearabl
         if (stack.is(SimTags.Items.LASER_POINTER_LENS)) {
             color = SimColors.MEDIA_OURPLE;
         } else if (item instanceof final DyeItem dyeItem) {
-            color = dyeItem.getDyeColor().getTextColor();
+            color = dyeItem.components().get(DataComponents.DYE).getTextColor();
         }
 
         return testColor == color;

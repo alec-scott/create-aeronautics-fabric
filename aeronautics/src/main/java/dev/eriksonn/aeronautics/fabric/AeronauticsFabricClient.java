@@ -5,15 +5,13 @@ import dev.eriksonn.aeronautics.Aeronautics;
 import dev.eriksonn.aeronautics.AeronauticsClient;
 import dev.eriksonn.aeronautics.content.blocks.hot_air.hot_air_burner.IrisBurnerFlameRenderQueue;
 import dev.eriksonn.aeronautics.events.AeronauticsClientEvents;
-import dev.eriksonn.aeronautics.index.AeroBlocks;
 import foundry.veil.api.network.VeilPacketManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandlerRegistry;
-import net.fabricmc.fabric.api.client.render.fluid.v1.SimpleFluidRenderHandler;
-import net.fabricmc.fabric.api.client.rendering.v1.BlockRenderLayerMap;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
-import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderingRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.minecraft.client.renderer.block.FluidModel;
+import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.resources.Identifier;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,33 +27,29 @@ public final class AeronauticsFabricClient implements ClientModInitializer {
         VeilPacketManager.registerClientReceivers();
         FabricAeroParticleTypes.registerFactories();
 
-        final SimpleFluidRenderHandler fluidRenderer = new SimpleFluidRenderHandler(
-                LEVITITE_BLEND_STILL, LEVITITE_BLEND_FLOW);
-        FluidRenderHandlerRegistry.INSTANCE.register(
+        // PORT-NOTE(mc26.1): render layers are no longer registered; they come from each texture's transparency.
+        // The levitite blend fluid is forced translucent here, levitite blocks through force_translucent in their
+        // block models, and the burner's cutout comes from its texture alpha.
+        FluidRenderingRegistry.register(
                 FabricAeroFluids.LEVITITE_BLEND.getSource(),
                 FabricAeroFluids.LEVITITE_BLEND.get(),
-                fluidRenderer);
-        BlockRenderLayerMap.putFluids(ChunkSectionLayer.TRANSLUCENT,
-                FabricAeroFluids.LEVITITE_BLEND.getSource(),
-                FabricAeroFluids.LEVITITE_BLEND.get());
-        BlockRenderLayerMap.putBlocks(ChunkSectionLayer.TRANSLUCENT,
-                AeroBlocks.LEVITITE.get(), AeroBlocks.PEARLESCENT_LEVITITE.get());
-        BlockRenderLayerMap.putBlock(
-                AeroBlocks.HOT_AIR_BURNER.get(),
-                ChunkSectionLayer.CUTOUT);
+                new FluidModel.Unbaked(new Material(LEVITITE_BLEND_STILL, true), new Material(LEVITITE_BLEND_FLOW, true),
+                        null, null));
 
         AeronauticsClient.init();
 
-        WorldRenderEvents.START_MAIN.register(
+        LevelRenderEvents.START_MAIN.register(
                 context -> IrisBurnerFlameRenderQueue.beginWorldFrame()
         );
-        WorldRenderEvents.END_MAIN.register(
+        LevelRenderEvents.END_MAIN.register(
                 context -> IrisBurnerFlameRenderQueue.finishWorldFrameCollection()
         );
         ClientTickEvents.START_CLIENT_TICK.register(client -> AeronauticsClientEvents.clientLevelTick(false));
         ClientTickEvents.END_CLIENT_TICK.register(client -> AeronauticsClientEvents.clientLevelTick(true));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            // Only count ticks once the initial resource reload (loading overlay) has finished.
             if (Boolean.getBoolean("aeronautics.productionSmokeTest")
+                    && client.getOverlay() == null
                     && PRODUCTION_SMOKE_TICKS.incrementAndGet() == PRODUCTION_SMOKE_REQUIRED_TICKS) {
                 // Create normally loads this only after joining a world. Exercise its mixins in production too.
                 PlacementClient.tick(client);

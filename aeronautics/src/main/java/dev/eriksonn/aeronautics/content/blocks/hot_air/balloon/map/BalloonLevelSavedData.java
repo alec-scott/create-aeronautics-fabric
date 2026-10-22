@@ -1,5 +1,7 @@
 package dev.eriksonn.aeronautics.content.blocks.hot_air.balloon.map;
 
+import dev.eriksonn.aeronautics.Aeronautics;
+import net.minecraft.resources.Identifier;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
@@ -40,7 +42,7 @@ public class BalloonLevelSavedData extends SavedData {
     public static BalloonLevelSavedData get(final ServerLevel level) {
         final BalloonLevelSavedData data = level.getChunkSource().getDataStorage().computeIfAbsent(
                 new SavedDataType<>(
-                        ID,
+                        Identifier.fromNamespaceAndPath(Aeronautics.MOD_ID, ID),
                         BalloonLevelSavedData::new,
                         CompoundTag.CODEC.xmap(
                                 tag -> create(level, tag, level.registryAccess()),

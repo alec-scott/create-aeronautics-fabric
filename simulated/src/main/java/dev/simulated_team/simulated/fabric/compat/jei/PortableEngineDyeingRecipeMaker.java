@@ -1,5 +1,8 @@
 package dev.simulated_team.simulated.fabric.compat.jei;
 
+import net.minecraft.world.item.ItemStackTemplate;
+import net.minecraft.world.item.Item;
+import dev.simulated_team.simulated.util.SimColors;
 import dev.simulated_team.simulated.Simulated;
 import dev.simulated_team.simulated.index.SimBlocks;
 import net.minecraft.core.registries.Registries;
@@ -34,7 +37,7 @@ public final class PortableEngineDyeingRecipeMaker {
 
     private static RecipeHolder<CraftingRecipe> createRecipe(
             final DyeColor color, final Ingredient redEngine) {
-        final DyeItem dye = DyeItem.byColor(color);
+        final Item dye = SimColors.dyeItem(color);
         final ItemStack output = SimBlocks.PORTABLE_ENGINES.get(color)
                 .asItem()
                 .getDefaultInstance();
@@ -42,10 +45,11 @@ public final class PortableEngineDyeingRecipeMaker {
                 "jei/portable_engine_dyeing/" + color.getSerializedName());
         final ResourceKey<Recipe<?>> recipeKey =
                 ResourceKey.create(Registries.RECIPE, id);
+        // PORT-NOTE(mc26.1): recipes take CommonInfo/CraftingBookInfo and an ItemStackTemplate result.
         final CraftingRecipe recipe = new ShapelessRecipe(
-                GROUP,
-                CraftingBookCategory.MISC,
-                output,
+                new Recipe.CommonInfo(true),
+                new CraftingRecipe.CraftingBookInfo(CraftingBookCategory.MISC, GROUP),
+                ItemStackTemplate.fromNonEmptyStack(output),
                 List.of(redEngine, Ingredient.of(dye)));
 
         return new RecipeHolder<>(recipeKey, recipe);

@@ -26,19 +26,19 @@ public final class LegacyItemTooltips {
                 continue;
             }
 
-            final Rarity rarity = item.getDefaultInstance().getRarity();
-            FontHelper.Palette color = FontHelper.Palette.STANDARD_CREATE;
-            if (rarity == Rarity.EPIC) {
-                color = new FontHelper.Palette(
-                        TooltipHelper.styleFromColor(SimColors.EPIC_OURPLE),
-                        TooltipHelper.styleFromColor(rarity.color())
-                );
-            }
+            // PORT-NOTE(mc26.1): item components (rarity included) are only bound when data loads, not at client init,
+            // so the epic palette is picked when the tooltip is shown rather than at registration.
+            final TooltipModifier standard = new ItemDescription.Modifier(item, FontHelper.Palette.STANDARD_CREATE);
+            final TooltipModifier epic = new ItemDescription.Modifier(item, new FontHelper.Palette(
+                    TooltipHelper.styleFromColor(SimColors.EPIC_OURPLE),
+                    TooltipHelper.styleFromColor(Rarity.EPIC.color())
+            ));
+            final TooltipModifier description = (tooltip, player) ->
+                    (item.getDefaultInstance().getRarity() == Rarity.EPIC ? epic : standard).modify(tooltip, player);
 
             TooltipModifier.REGISTRY.register(
                     item,
-                    new ItemDescription.Modifier(item, color)
-                            .andThen(TooltipModifier.mapNull(KineticStats.create(item)))
+                    description.andThen(TooltipModifier.mapNull(KineticStats.create(item)))
             );
         }
     }

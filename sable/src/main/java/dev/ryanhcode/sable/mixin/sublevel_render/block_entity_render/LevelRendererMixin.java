@@ -166,7 +166,7 @@ public class LevelRendererMixin implements SubLevelBlockEntityRenderExtension {
         levelRenderState.cameraRenderState.orientation = new Quaternionf(transform.orientation()).conjugate().mul(levelRenderState.cameraRenderState.orientation);
     }
 
-    @Inject(method = "submitBlockEntities", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/blockentity/BlockEntityRenderDispatcher;submit(Lnet/minecraft/client/renderer/blockentity/state/BlockEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/CameraRenderState;)V", shift = At.Shift.AFTER))
+    @Inject(method = "submitBlockEntities", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/blockentity/BlockEntityRenderDispatcher;submit(Lnet/minecraft/client/renderer/blockentity/state/BlockEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V", shift = At.Shift.AFTER))
     private void sable$restoreCameraOrientation(final PoseStack poseStack, final LevelRenderState levelRenderState, final SubmitNodeStorage submitNodeStorage, final CallbackInfo ci) {
         if (this.sable$cameraOrientation != null) {
             levelRenderState.cameraRenderState.orientation = this.sable$cameraOrientation;

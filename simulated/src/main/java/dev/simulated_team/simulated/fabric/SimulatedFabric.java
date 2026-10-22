@@ -57,11 +57,11 @@ public final class SimulatedFabric implements ModInitializer {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 SimCommand.register(dispatcher, registryAccess));
 
-        ServerChunkEvents.CHUNK_LOAD.register((level, chunk) ->
+        ServerChunkEvents.CHUNK_LOAD.register((level, chunk, generated) ->
                 SimulatedCommonEvents.onChunkLoad(level, chunk, false));
         ServerChunkEvents.CHUNK_GENERATE.register((level, chunk) ->
                 SimulatedCommonEvents.onChunkLoad(level, chunk, true));
-        ServerTickEvents.END_WORLD_TICK.register(SimulatedCommonEvents::onServerTickEnd);
+        ServerTickEvents.END_LEVEL_TICK.register(SimulatedCommonEvents::onServerTickEnd);
         ServerLifecycleEvents.SERVER_STARTED.register(server ->
                 FabricSimItemService.setServerFuels(server.fuelValues()));
         ServerLifecycleEvents.SERVER_STOPPED.register(SimulatedCommonEvents::onServerStopped);

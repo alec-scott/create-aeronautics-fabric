@@ -40,8 +40,9 @@ public abstract class BoilerDataMixin implements BoilerDataExtension {
 		this.aeronautics$attachedVents = 0;
 	}
 
+	// PORT-NOTE(mc26.1): BlockState.is(Block) is TypedInstance.is(T) now, i.e. is(Object) in bytecode.
 	@Inject(method = "evaluate", at = @At(value = "INVOKE",
-			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Lnet/minecraft/world/level/block/Block;)Z",
+			target = "Lnet/minecraft/world/level/block/state/BlockState;is(Ljava/lang/Object;)Z",
 			ordinal = 0,
 			remap = true))
 	private void aeronautics$countVents2(final FluidTankBlockEntity controller, final CallbackInfoReturnable<Boolean> cir, @Local(ordinal = 1) final BlockState attachedState) {

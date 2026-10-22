@@ -23,6 +23,7 @@ public class CameraMixin {
     @Shadow private float eyeHeightOld;
 
     @Shadow private float eyeHeight;
+    @Shadow private Entity entity;
 
     @Unique
     private final Vector3d sable$startPos = new Vector3d();
@@ -30,14 +31,15 @@ public class CameraMixin {
     @Unique
     private final Vector3d sable$endPos = new Vector3d();
 
-    @WrapOperation(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"))
+    // PORT-NOTE(mc26.1): Camera.setup became alignWithEntity(partialTicks); the entity is a field there.
+    @WrapOperation(method = "alignWithEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"))
     private void sable$setPosition(final Camera instance,
                                    final double x,
                                    final double y,
                                    final double z,
                                    final Operation<Void> original,
-                                   @Local(argsOnly = true) final Entity entity,
                                    @Local(argsOnly = true) final float partialTicks) {
+        final Entity entity = this.entity;
 
         final SubLevel trackingSubLevel = Sable.HELPER.getTrackingOrVehicleSubLevel(entity);
 

@@ -27,6 +27,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 
@@ -44,17 +45,20 @@ public final class PlungerLauncherItemModel implements ItemModel, SpecialModelRe
     private final BakedItemModelPart body;
     private final BakedItemModelPart joint;
     private final BakedItemModelPart spool;
+    private final Matrix4fc transformation;
 
     private PlungerLauncherItemModel(
             final BakedItemModelPart item,
             final BakedItemModelPart body,
             final BakedItemModelPart joint,
-            final BakedItemModelPart spool
+            final BakedItemModelPart spool,
+            final Matrix4fc transformation
     ) {
         this.item = item;
         this.body = body;
         this.joint = joint;
         this.spool = spool;
+        this.transformation = transformation;
     }
 
     @Override
@@ -134,11 +138,11 @@ public final class PlungerLauncherItemModel implements ItemModel, SpecialModelRe
         };
 
         // Unlike the launcher base, these partials are authored around [0, 0, 0].
-        addLayer(state, displayContext, body, Sheets.solidBlockSheet(),
+        addLayer(state, displayContext, body, Sheets.cutoutBlockSheet(),
                 ItemStackRenderState.FoilType.NONE, bodyTransform, false, false, 0, null);
-        addLayer(state, displayContext, joint, Sheets.solidBlockSheet(),
+        addLayer(state, displayContext, joint, Sheets.cutoutBlockSheet(),
                 ItemStackRenderState.FoilType.NONE, bodyTransform, false, false, 0, null);
-        addLayer(state, displayContext, spool, Sheets.solidBlockSheet(),
+        addLayer(state, displayContext, spool, Sheets.cutoutBlockSheet(),
                 ItemStackRenderState.FoilType.NONE, matrices -> {
                     bodyTransform.accept(matrices);
                     matrices.translate(0, 0, 3 / 16.0);
@@ -158,26 +162,28 @@ public final class PlungerLauncherItemModel implements ItemModel, SpecialModelRe
             @Nullable final AbstractClientPlayer focusOwner
     ) {
         final LayerRenderState layer = state.newLayer();
-        layer.setRenderType(renderType);
+        // PORT-NOTE(mc26.1): layers no longer take a render type; submit() draws with it explicitly.
         layer.setExtents(part.extents());
+        layer.setLocalTransform(this.transformation);
         item.properties().applyToLayer(layer, displayContext);
         layer.prepareQuadList().addAll(part.quads());
         layer.setFoilType(foil);
         layer.setupSpecialModel(this,
-                new RenderData(layer, renderType, foil, transform, centerQuads, captureFocus, partialTicks, focusOwner));
+                new RenderData(layer, displayContext, renderType, foil, transform, centerQuads, captureFocus, partialTicks, focusOwner));
     }
 
     @Override
     public void submit(
             final RenderData data,
-            final ItemDisplayContext displayContext,
             final PoseStack matrices,
             final SubmitNodeCollector queue,
             final int light,
             final int overlay,
             final boolean glint,
-            final int seed
+            final int outlineColor
     ) {
+        // PORT-NOTE(mc26.1): the display context is no longer passed in; it is captured in RenderData.
+        final ItemDisplayContext displayContext = data.displayContext();
         matrices.pushPose();
         matrices.translate(0.5, 0.5, 0.5);
         data.transform().accept(matrices);
@@ -202,17 +208,8 @@ public final class PlungerLauncherItemModel implements ItemModel, SpecialModelRe
         if (data.centerQuads()) {
             matrices.translate(-0.5, -0.5, -0.5);
         }
-        queue.submitItem(
-                matrices,
-                displayContext,
-                light,
-                overlay,
-                0,
-                data.layer().prepareTintLayers(0),
-                data.layer().prepareQuadList(),
-                data.renderType(),
-                data.foil()
-        );
+        BakedItemModelPart.submit(queue, matrices, data.renderType(), data.layer().prepareQuadList(), light, overlay,
+                data.foil());
         matrices.popPose();
         matrices.popPose();
     }
@@ -229,6 +226,7 @@ public final class PlungerLauncherItemModel implements ItemModel, SpecialModelRe
 
     public record RenderData(
             LayerRenderState layer,
+            ItemDisplayContext displayContext,
             RenderType renderType,
             ItemStackRenderState.FoilType foil,
             Consumer<PoseStack> transform,
@@ -256,13 +254,14 @@ public final class PlungerLauncherItemModel implements ItemModel, SpecialModelRe
         }
 
         @Override
-        public ItemModel bake(final ItemModel.BakingContext context) {
+        public ItemModel bake(final ItemModel.BakingContext context, final Matrix4fc transformation) {
             final ModelBaker baker = context.blockModelBaker();
             return new PlungerLauncherItemModel(
                     BakedItemModelPart.bake(baker, ITEM),
                     BakedItemModelPart.bake(baker, BODY),
                     BakedItemModelPart.bake(baker, JOINT),
-                    BakedItemModelPart.bake(baker, SPOOL)
+                    BakedItemModelPart.bake(baker, SPOOL),
+                    transformation
             );
         }
     }

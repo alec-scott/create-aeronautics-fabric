@@ -1,5 +1,6 @@
 package dev.simulated_team.simulated.content.blocks.lasers.laser_pointer;
 
+import net.minecraft.core.component.DataComponents;
 import com.mojang.serialization.MapCodec;
 import com.zurrtum.create.content.equipment.wrench.IWrenchable;
 import com.zurrtum.create.content.kinetics.base.KineticBlockEntity;
@@ -133,7 +134,7 @@ public class LaserPointerBlock extends DirectionalBlock implements IBE<LaserPoin
         int newColor = -1;
         boolean newRainbow = be.isRainbow();
         if (itemStack.getItem() instanceof final DyeItem dyeItem) {
-            final DyeColor gatheredColor = dyeItem.getDyeColor();
+            final DyeColor gatheredColor = dyeItem.components().get(DataComponents.DYE);
             newColor = gatheredColor.getTextColor();
         } else if (itemStack.is(SimTags.Items.LASER_POINTER_LENS)) {
             newColor = SimColors.MEDIA_OURPLE;

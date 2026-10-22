@@ -1,5 +1,7 @@
 package dev.simulated_team.simulated.content.navigation_targets.lodestone_compass_compatability;
 
+import dev.simulated_team.simulated.Simulated;
+import net.minecraft.resources.Identifier;
 import com.mojang.serialization.Codec;
 import dev.simulated_team.simulated.compat.create.CommonLevelAttached;
 import dev.ryanhcode.sable.Sable;
@@ -41,7 +43,7 @@ public class LodestoneTrackingMap extends SavedData {
 	private static final Codec<List<LodestoneInformation>> INFORMATION_CODEC = LodestoneInformation.CODEC.listOf();
 	private static SavedDataType<LodestoneTrackingMap> type(final ServerLevel level) {
 		return new SavedDataType<>(
-			FILE_ID,
+			Identifier.fromNamespaceAndPath(Simulated.MOD_ID, FILE_ID),
 			() -> new LodestoneTrackingMap(level),
 			INFORMATION_CODEC.fieldOf("TrackerInformation").codec().xmap(
 					information -> load(level, information),

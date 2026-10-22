@@ -26,9 +26,9 @@ import com.tterrag.registrate.util.nullness.NonNullSupplier;
 import io.github.fabricators_of_create.porting_lib.util.DeferredHolder;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.client.rendering.v1.BlockRenderLayerMap;
-import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandlerRegistry;
-import net.fabricmc.fabric.api.client.render.fluid.v1.SimpleFluidRenderHandler;
+import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderingRegistry;
+import net.minecraft.client.renderer.block.FluidModel;
+import net.minecraft.client.resources.model.sprite.Material;
 import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariantAttributeHandler;
 import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariantAttributes;
 import net.minecraft.client.renderer.rendertype.RenderType;
@@ -189,39 +189,20 @@ public class FluidBuilder<T extends SimpleFlowableFluid, P> extends AbstractBuil
         return lang(flowing -> FluidHelper.getDescriptionId(flowing.getSource()), name);
     }
 
+    // PORT-NOTE(mc26.1): fluid layers are no longer registered. A translucent layer is applied by forcing the
+    // fluid materials translucent when the fluid model is registered (see registerDefaultRenderer).
     public FluidBuilder<T, P> renderType(Supplier<Supplier<?>> layer) {
-        if (this.layer == null) {
-            onRegister(this::registerRenderType);
-        }
         this.layer = layer;
         return this;
     }
 
-    protected void registerRenderType(T entry) {
-        EnvExecutor.runWhenOn(EnvType.CLIENT, () -> () ->
-                BlockRenderLayerMap.putFluids(toChunkSectionLayer(layer.get().get()), entry, entry.getSource()));
-    }
-
-    private static ChunkSectionLayer toChunkSectionLayer(Object layer) {
-        if (layer instanceof ChunkSectionLayer chunkLayer) {
-            return chunkLayer;
+    @Environment(EnvType.CLIENT)
+    private boolean isTranslucent() {
+        if (this.layer == null) {
+            return false;
         }
-        if (layer == RenderTypes.solidMovingBlock()) {
-            return ChunkSectionLayer.SOLID;
-        }
-        if (layer == RenderTypes.cutoutMovingBlock()) {
-            return ChunkSectionLayer.CUTOUT;
-        }
-        if (layer == RenderTypes.cutoutMovingBlock()) {
-            return ChunkSectionLayer.CUTOUT;
-        }
-        if (layer == RenderTypes.translucentMovingBlock()) {
-            return ChunkSectionLayer.TRANSLUCENT;
-        }
-        if (layer == RenderTypes.tripwireMovingBlock()) {
-            return ChunkSectionLayer.TRIPWIRE;
-        }
-        throw new IllegalArgumentException("Unsupported fluid render layer: " + layer);
+        final Object requested = this.layer.get().get();
+        return requested == ChunkSectionLayer.TRANSLUCENT || requested == RenderTypes.translucentMovingBlock();
     }
 
     /**
@@ -424,9 +405,12 @@ public class FluidBuilder<T extends SimpleFlowableFluid, P> extends AbstractBuil
         return fluidFactory.apply(makeProperties());
     }
 
+    // PORT-NOTE(mc26.1): fluid render handlers became FluidModel.Unbaked registrations.
     @Environment(EnvType.CLIENT)
     protected void registerDefaultRenderer(T flowing) {
-        FluidRenderHandlerRegistry.INSTANCE.register(getSource(), flowing, new SimpleFluidRenderHandler(stillTexture, flowingTexture));
+        final boolean translucent = isTranslucent();
+        FluidRenderingRegistry.register(getSource(), flowing, new FluidModel.Unbaked(
+                new Material(stillTexture, translucent), new Material(flowingTexture, translucent), null, null));
     }
 
     /**

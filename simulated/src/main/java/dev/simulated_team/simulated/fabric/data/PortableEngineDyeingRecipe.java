@@ -1,5 +1,7 @@
 package dev.simulated_team.simulated.fabric.data;
 
+import com.mojang.serialization.MapCodec;
+import net.minecraft.network.codec.StreamCodec;
 import com.zurrtum.create.AllItemTags;
 import dev.simulated_team.simulated.content.blocks.portable_engine.PortableEngineBlock;
 import dev.simulated_team.simulated.fabric.FabricSimRecipeTypes;
@@ -15,8 +17,13 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 
 public final class PortableEngineDyeingRecipe extends CustomRecipe {
-    public PortableEngineDyeingRecipe(final CraftingBookCategory category) {
-        super(category);
+    // PORT-NOTE(mc26.1): CustomRecipe lost its category constructor and CustomRecipe.Serializer; a stateless recipe
+    // now serializes as a unit codec over a single instance.
+    public static final PortableEngineDyeingRecipe INSTANCE = new PortableEngineDyeingRecipe();
+    public static final RecipeSerializer<PortableEngineDyeingRecipe> SERIALIZER =
+            new RecipeSerializer<>(MapCodec.unit(INSTANCE), StreamCodec.unit(INSTANCE));
+
+    private PortableEngineDyeingRecipe() {
     }
 
     @Override
@@ -45,7 +52,7 @@ public final class PortableEngineDyeingRecipe extends CustomRecipe {
     }
 
     @Override
-    public ItemStack assemble(final CraftingInput input, final HolderLookup.Provider registries) {
+    public ItemStack assemble(final CraftingInput input) {
         ItemStack engine = ItemStack.EMPTY;
         DyeColor color = DyeColor.RED;
 

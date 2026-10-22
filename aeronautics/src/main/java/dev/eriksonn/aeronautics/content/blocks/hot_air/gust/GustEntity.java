@@ -96,7 +96,7 @@ public class GustEntity extends Entity {
 
             for (int i = 0; i < 3; i++) {
                 // 10% chance no gustuous action
-                if (level.random.nextFloat() < 0.1) {
+                if (level.getRandom().nextFloat() < 0.1) {
                     continue;
                 }
 

@@ -1,5 +1,6 @@
 package dev.simulated_team.simulated.content.blocks.steering_wheel;
 
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.zurrtum.create.client.AllPartialModels;
 import dev.simulated_team.simulated.compat.create.KineticBlockEntityRenderer;
@@ -18,10 +19,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.renderer.block.model.BlockModelPart;
-import net.minecraft.client.renderer.block.model.BlockStateModel;
-import net.minecraft.client.renderer.block.model.SimpleModelWrapper;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.Direction;
@@ -81,12 +81,14 @@ public class SteeringWheelRenderer extends KineticBlockEntityRenderer<SteeringWh
     private SuperByteBuffer getWheelModel(final SteeringWheelBlockEntity be) {
         final ModelKey key = new ModelKey(be.material);
         return SuperByteBufferCache.getInstance().get(STEERING_WHEEL, key, () -> {
-            final SimpleModelWrapper model = generateModel(SimPartialModels.STEERING_WHEEL.get(), be.material);
-            return SuperBufferFactory.getInstance().createForBlock(model, Blocks.AIR.defaultBlockState(), new PoseStack());
+            final BlockStateModel model = generateModel(SimPartialModels.STEERING_WHEEL.get(), be.material);
+            return SuperBufferFactory.getInstance().createForBlock(model, Blocks.AIR.defaultBlockState(), new PoseStack().last());
         });
     }
 
-    public static SimpleModelWrapper generateModel(final SimpleModelWrapper template, final BlockState planksBlockState) {
+    // PORT-NOTE(mc26.1): ported like Create-Fly's WaterWheelRenderer: models are BlockStateModels, parts are
+    // collected into a list, and sprites come from each quad's material.
+    public static BlockStateModel generateModel(final BlockStateModel template, final BlockState planksBlockState) {
         final Block planksBlock = planksBlockState.getBlock();
         final Identifier id = RegisteredObjectsHelper.getKeyOrThrow(planksBlock);
         final String wood = plankStateToWoodName(planksBlockState);
@@ -120,28 +122,27 @@ public class SteeringWheelRenderer extends KineticBlockEntityRenderer<SteeringWh
     }
 
     private static TextureAtlasSprite getSpriteOnSide(final BlockState state, final Direction side) {
-        final BlockStateModel model = Minecraft.getInstance()
-                .getBlockRenderer()
-                .getBlockModel(state);
+        final BlockStateModel model = Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state);
         if (model == null)
             return null;
         final RandomSource random = RandomSource.create();
         random.setSeed(42L);
-        final List<BlockModelPart> parts = model.collectParts(random);
-        for (final BlockModelPart part : parts) {
+        final List<BlockStateModelPart> parts = new ObjectArrayList<>();
+        model.collectParts(random, parts);
+        for (final BlockStateModelPart part : parts) {
             final List<BakedQuad> quads = part.getQuads(side);
             if (!quads.isEmpty()) {
-                return quads.getFirst().sprite();
+                return quads.getFirst().materialInfo().sprite();
             }
         }
         random.setSeed(42L);
-        for (final BlockModelPart part : parts) {
+        for (final BlockStateModelPart part : parts) {
             for (final BakedQuad quad : part.getQuads(null)) {
                 if (quad.direction() == side) {
-                    return quad.sprite();
+                    return quad.materialInfo().sprite();
                 }
             }
         }
-        return model.particleIcon();
+        return model.particleMaterial().sprite();
     }
 }

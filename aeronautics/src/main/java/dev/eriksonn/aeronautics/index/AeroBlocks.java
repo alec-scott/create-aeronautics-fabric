@@ -1,5 +1,6 @@
 package dev.eriksonn.aeronautics.index;
 
+import net.fabricmc.fabric.api.registry.FlammableBlockRegistry;
 import com.zurrtum.create.AllBlocks;
 import com.zurrtum.create.AllItems;
 import com.zurrtum.create.api.behaviour.display.DisplaySource;
@@ -384,8 +385,10 @@ public class AeroBlocks {
                     .register();
 
     private static <B extends Block, R> NonNullUnaryOperator<BlockBuilder<B, R>> flammable(final int encouragement, final int flamability) {
-        return builder -> builder.onRegisterAfter(Registries.BLOCK, block -> ((FireBlock) Blocks.FIRE)
-                .setFlammable(block, encouragement, flamability));
+        // PORT-NOTE(mc26.1): FireBlock.setFlammable is private; Fabric's registry sets the same odds (burn =
+        // flammability, spread = encouragement).
+        return builder -> builder.onRegisterAfter(Registries.BLOCK, block -> FlammableBlockRegistry.getDefaultInstance()
+                .add(block, flamability, encouragement));
     }
 
     public static void init() {

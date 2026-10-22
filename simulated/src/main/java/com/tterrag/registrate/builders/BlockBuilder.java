@@ -13,12 +13,9 @@ import com.tterrag.registrate.util.nullness.*;
 import io.github.fabricators_of_create.porting_lib.models.generators.BlockStateProvider;
 import io.github.fabricators_of_create.porting_lib.util.DeferredHolder;
 import net.fabricmc.api.EnvType;
-import net.fabricmc.fabric.api.client.rendering.v1.BlockRenderLayerMap;
-import net.fabricmc.fabric.api.client.rendering.v1.ColorProviderRegistry;
-import net.minecraft.client.color.block.BlockColor;
+import net.fabricmc.fabric.api.client.rendering.v1.BlockColorRegistry;
+import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.Identifier;
@@ -32,6 +29,7 @@ import net.minecraft.world.level.storage.loot.BuiltInLootTables;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -83,7 +81,7 @@ public class BlockBuilder<T extends Block, P> extends AbstractBuilder<Block, T, 
     private NonNullFunction<BlockBehaviour.Properties, BlockBehaviour.Properties> propertiesCallback = NonNullUnaryOperator.identity();
     private Supplier<Supplier<?>> renderLayer;
     @Nullable
-    private NonNullSupplier<Supplier<BlockColor>> colorHandler;
+    private NonNullSupplier<Supplier<List<BlockTintSource>>> colorHandler;
 
     protected BlockBuilder(AbstractRegistrate<?> owner, P parent, String name, BuilderCallback callback, NonNullFunction<BlockBehaviour.Properties, T> factory, NonNullSupplier<BlockBehaviour.Properties> initialProperties) {
         super(owner, parent, name, callback, Registries.BLOCK);
@@ -127,39 +125,12 @@ public class BlockBuilder<T extends Block, P> extends AbstractBuilder<Block, T, 
         return this;
     }
 
+    // PORT-NOTE(mc26.1): block render layers are no longer registered. Each baked quad picks its chunk layer from
+    // its texture's transparency (BakedQuad.MaterialInfo), and BlockRenderLayerMap / ItemBlockRenderTypes are gone.
+    // Kept so existing builder chains compile; the requested layer is recorded but unused.
     public BlockBuilder<T, P> addLayer(Supplier<Supplier<?>> layer) {
-        if (renderLayer == null) {
-            onRegister(this::registerLayers);
-        }
         renderLayer = layer;
         return this;
-    }
-
-    protected void registerLayers(T entry) {
-        EnvExecutor.runWhenOn(EnvType.CLIENT, () -> () ->
-                BlockRenderLayerMap.putBlock(entry, toChunkSectionLayer(renderLayer.get().get())));
-    }
-
-    private static ChunkSectionLayer toChunkSectionLayer(Object layer) {
-        if (layer instanceof ChunkSectionLayer chunkLayer) {
-            return chunkLayer;
-        }
-        if (layer == RenderTypes.solidMovingBlock()) {
-            return ChunkSectionLayer.SOLID;
-        }
-        if (layer == RenderTypes.cutoutMovingBlock()) {
-            return ChunkSectionLayer.CUTOUT;
-        }
-        if (layer == RenderTypes.cutoutMovingBlock()) {
-            return ChunkSectionLayer.CUTOUT;
-        }
-        if (layer == RenderTypes.translucentMovingBlock()) {
-            return ChunkSectionLayer.TRANSLUCENT;
-        }
-        if (layer == RenderTypes.tripwireMovingBlock()) {
-            return ChunkSectionLayer.TRIPWIRE;
-        }
-        throw new IllegalArgumentException("Unsupported block render layer: " + layer);
     }
 
     /**
@@ -252,7 +223,8 @@ public class BlockBuilder<T extends Block, P> extends AbstractBuilder<Block, T, 
      * @return this {@link BlockBuilder}
      */
     // TODO it might be worthwhile to abstract this more and add the capability to automatically copy to the item
-    public BlockBuilder<T, P> color(NonNullSupplier<Supplier<BlockColor>> colorHandler) {
+    // PORT-NOTE(mc26.1): BlockColor became a list of BlockTintSource, one per tint index.
+    public BlockBuilder<T, P> color(NonNullSupplier<Supplier<List<BlockTintSource>>> colorHandler) {
         if (this.colorHandler == null) {
             EnvExecutor.runWhenOn(EnvType.CLIENT, () -> this::registerBlockColor);
         }
@@ -262,7 +234,7 @@ public class BlockBuilder<T extends Block, P> extends AbstractBuilder<Block, T, 
     
     protected void registerBlockColor() {
         onRegister(entry -> {
-            ColorProviderRegistry.BLOCK.register(colorHandler.get().get(), entry);
+            BlockColorRegistry.register(colorHandler.get().get(), entry);
         });
     }
 

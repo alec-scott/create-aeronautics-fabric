@@ -26,12 +26,11 @@ public abstract class GameRendererMixin {
                             "renderLevel(" +
                             "Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;" +
                             "Lnet/minecraft/client/DeltaTracker;" +
-                            "ZLnet/minecraft/client/Camera;" +
-                            "Lorg/joml/Matrix4f;" +
-                            "Lorg/joml/Matrix4f;" +
-                            "Lorg/joml/Matrix4f;" +
+                            "ZLnet/minecraft/client/renderer/state/level/CameraRenderState;" +
+                            "Lorg/joml/Matrix4fc;" +
                             "Lcom/mojang/blaze3d/buffers/GpuBufferSlice;" +
-                            "Lorg/joml/Vector4f;Z)V",
+                            "Lorg/joml/Vector4f;Z" +
+                            "Lnet/minecraft/client/renderer/chunk/ChunkSectionsToRender;)V",
                     shift = At.Shift.AFTER
             )
     )

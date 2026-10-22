@@ -26,7 +26,6 @@
     "levitite.BlockMixin",
     "levitite.EntityMixin",
     "levitite.ItemEntityMixin",
-    "levitite.LivingEntityMixin",
     "levitite.WaterWheelBlockEntityMixin",
     "potato_cannon_projectiles.PotatoProjectileEntityMixin",
     "propeller_bearing.BearingContraptionMixin",

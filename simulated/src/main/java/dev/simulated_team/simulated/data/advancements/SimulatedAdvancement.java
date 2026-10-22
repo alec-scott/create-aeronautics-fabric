@@ -1,5 +1,6 @@
 package dev.simulated_team.simulated.data.advancements;
 
+import net.minecraft.world.item.ItemStackTemplate;
 import com.tterrag.registrate.util.entry.ItemProviderEntry;
 import dev.simulated_team.simulated.util.SimColors;
 import net.minecraft.advancements.*;
@@ -125,7 +126,7 @@ public class SimulatedAdvancement {
         for (int index = 0; index < this.configuration.criteria.size(); index++) {
             builder.addCriterion(String.valueOf(index), this.configuration.criteria.get(index).get());
         }
-        builder.display(this.configuration.icon.get(), Component.translatable(this.titleKey()),
+        builder.display(ItemStackTemplate.fromNonEmptyStack(this.configuration.icon.get()), Component.translatable(this.titleKey()),
                 Component.translatable(this.descriptionKey()).withStyle(s -> s.withColor(SimColors.ADVANCABLE_GOLD)),
                 id.equals("root") ? this.background : null, this.configuration.type.advancementType,
                 this.configuration.type.toast, this.configuration.type.announce, this.configuration.type.hide);

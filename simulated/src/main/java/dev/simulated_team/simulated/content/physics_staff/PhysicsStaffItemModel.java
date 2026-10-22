@@ -33,6 +33,7 @@ import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -59,6 +60,7 @@ public final class PhysicsStaffItemModel implements ItemModel, SpecialModelRende
     private final BakedItemModelPart sigma;
     private final BakedItemModelPart innerCube;
     private final BakedItemModelPart outerCube;
+    private final Matrix4fc transformation;
 
     private PhysicsStaffItemModel(
             final BakedItemModelPart item,
@@ -67,7 +69,8 @@ public final class PhysicsStaffItemModel implements ItemModel, SpecialModelRende
             final BakedItemModelPart ring,
             final BakedItemModelPart sigma,
             final BakedItemModelPart innerCube,
-            final BakedItemModelPart outerCube
+            final BakedItemModelPart outerCube,
+            final Matrix4fc transformation
     ) {
         this.item = item;
         this.core = core;
@@ -76,6 +79,7 @@ public final class PhysicsStaffItemModel implements ItemModel, SpecialModelRende
         this.sigma = sigma;
         this.innerCube = innerCube;
         this.outerCube = outerCube;
+        this.transformation = transformation;
     }
 
     @Override
@@ -241,26 +245,28 @@ public final class PhysicsStaffItemModel implements ItemModel, SpecialModelRende
             final float partialTicks
     ) {
         final LayerRenderState layer = state.newLayer();
-        layer.setRenderType(renderType);
+        // PORT-NOTE(mc26.1): layers no longer take a render type; submit() draws with it explicitly.
         layer.setExtents(part.extents());
+        layer.setLocalTransform(this.transformation);
         item.properties().applyToLayer(layer, displayContext);
         layer.prepareQuadList().addAll(part.quads());
         layer.setFoilType(foil);
         layer.setupSpecialModel(this,
-                new RenderData(layer, renderType, foil, transform, lightOverride, captureFocus, partialTicks));
+                new RenderData(layer, displayContext, renderType, foil, transform, lightOverride, captureFocus, partialTicks));
     }
 
     @Override
     public void submit(
             final RenderData data,
-            final ItemDisplayContext displayContext,
             final PoseStack matrices,
             final SubmitNodeCollector queue,
             final int light,
             final int overlay,
             final boolean glint,
-            final int seed
+            final int outlineColor
     ) {
+        // PORT-NOTE(mc26.1): the display context is no longer passed in; it is captured in RenderData.
+        final ItemDisplayContext displayContext = data.displayContext();
         matrices.pushPose();
         matrices.translate(0.5, 0.5, 0.5);
         data.transform().accept(matrices);
@@ -274,17 +280,8 @@ public final class PhysicsStaffItemModel implements ItemModel, SpecialModelRende
         }
         matrices.pushPose();
         matrices.translate(-0.5, -0.5, -0.5);
-        queue.submitItem(
-                matrices,
-                displayContext,
-                data.lightOverride() < 0 ? light : data.lightOverride(),
-                overlay,
-                0,
-                data.layer().prepareTintLayers(0),
-                data.layer().prepareQuadList(),
-                data.renderType(),
-                data.foil()
-        );
+        BakedItemModelPart.submit(queue, matrices, data.renderType(), data.layer().prepareQuadList(),
+                data.lightOverride() < 0 ? light : data.lightOverride(), overlay, data.foil());
         matrices.popPose();
         matrices.popPose();
     }
@@ -304,6 +301,7 @@ public final class PhysicsStaffItemModel implements ItemModel, SpecialModelRende
 
     public record RenderData(
             LayerRenderState layer,
+            ItemDisplayContext displayContext,
             RenderType renderType,
             ItemStackRenderState.FoilType foil,
             Consumer<PoseStack> transform,
@@ -333,7 +331,7 @@ public final class PhysicsStaffItemModel implements ItemModel, SpecialModelRende
         }
 
         @Override
-        public ItemModel bake(final ItemModel.BakingContext context) {
+        public ItemModel bake(final ItemModel.BakingContext context, final Matrix4fc transformation) {
             final ModelBaker baker = context.blockModelBaker();
             return new PhysicsStaffItemModel(
                     BakedItemModelPart.bake(baker, ITEM),
@@ -342,7 +340,8 @@ public final class PhysicsStaffItemModel implements ItemModel, SpecialModelRende
                     BakedItemModelPart.bake(baker, RING),
                     BakedItemModelPart.bake(baker, SIGMA),
                     BakedItemModelPart.bake(baker, INNER_CUBE),
-                    BakedItemModelPart.bake(baker, OUTER_CUBE)
+                    BakedItemModelPart.bake(baker, OUTER_CUBE),
+                    transformation
             );
         }
     }

@@ -20,11 +20,15 @@ import dev.simulated_team.simulated.network.packets.contraption_diagram.DiagramD
 import dev.simulated_team.simulated.network.packets.contraption_diagram.DiagramSaveConfigPacket;
 import dev.simulated_team.simulated.network.packets.contraption_diagram.RequestDiagramDataPacket;
 import dev.simulated_team.simulated.util.SimpleSubLevelGroupRenderer;
-import foundry.veil.api.client.render.VeilLevelPerspectiveRenderer;
-import foundry.veil.api.client.render.VeilRenderSystem;
-import foundry.veil.api.client.render.framebuffer.AdvancedFbo;
-import foundry.veil.api.client.render.post.PostPipeline;
-import foundry.veil.api.client.render.post.PostProcessingManager;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.systems.GpuDevice;
+import com.mojang.blaze3d.textures.GpuTexture;
+import dev.simulated_team.simulated.content.entities.diagram.render.DiagramFramebuffers;
+import dev.simulated_team.simulated.content.entities.diagram.render.DiagramOutlinePass;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import foundry.veil.api.network.VeilPacketManager;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import com.zurrtum.create.client.catnip.gui.AbstractSimiScreen;
@@ -32,7 +36,7 @@ import dev.simulated_team.simulated.compat.create.CommonLangBuilder;
 import com.zurrtum.create.catnip.theme.Color;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.render.TextureSetup;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -55,7 +59,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.lwjgl.opengl.GL11.*;
 
 public class DiagramScreen extends AbstractSimiScreen {
     public static int UPDATE_REQUEST_INTERVAL = 10;
@@ -94,9 +97,7 @@ public class DiagramScreen extends AbstractSimiScreen {
 
     private final List<DiagramForceGroupToggle> forceToggleWidgets = new ObjectArrayList<>();
 
-    private AdvancedFbo fbo;
-    private AdvancedFbo outlineFbo;
-    private AdvancedFbo finalFbo;
+    private DiagramFramebuffers targets;
 
     private float renderTime = FPS;
 
@@ -149,15 +150,9 @@ public class DiagramScreen extends AbstractSimiScreen {
             this.note.free();
         }
 
-        if (this.fbo != null) {
-            this.fbo.free();
-            this.fbo = null;
-
-            this.outlineFbo.free();
-            this.outlineFbo = null;
-
-            this.finalFbo.free();
-            this.finalFbo = null;
+        if (this.targets != null) {
+            this.targets.close();
+            this.targets = null;
         }
     }
 
@@ -171,9 +166,7 @@ public class DiagramScreen extends AbstractSimiScreen {
     protected void init() {
         super.init();
         this.freeFramebuffers();
-        this.fbo = AdvancedFbo.withSize(DIAGRAM_TEXTURE.width, DIAGRAM_TEXTURE.height).addColorTextureBuffer().setDepthTextureBuffer().build(true);
-        this.outlineFbo = AdvancedFbo.withSize(DIAGRAM_TEXTURE.width, DIAGRAM_TEXTURE.height).addColorTextureBuffer().build(true);
-        this.finalFbo = AdvancedFbo.withSize(DIAGRAM_TEXTURE.width, DIAGRAM_TEXTURE.height).addColorTextureBuffer().build(true);
+        this.targets = new DiagramFramebuffers("screen", DIAGRAM_TEXTURE.width, DIAGRAM_TEXTURE.height);
 
         final int diagramX = this.width / 2 - DIAGRAM_TEXTURE.width / 2;
         final int diagramY = this.height / 2 - DIAGRAM_TEXTURE.height / 2;
@@ -317,7 +310,33 @@ public class DiagramScreen extends AbstractSimiScreen {
         throw new RuntimeException();
     }
 
+    // PORT-NOTE(mc26.1): reading the rendered diagram back is asynchronous in 26.1 (there is no bound framebuffer to
+    // glReadPixels from), so greebles are placed once the copy of the output texture completes.
     private void addGreebles(final int diagramX, final int diagramY) {
+        final DiagramFramebuffers targets = this.targets;
+        if (targets == null) {
+            return;
+        }
+
+        final GpuTexture texture = targets.output().getColorTexture();
+        final int pixelSize = texture.getFormat().pixelSize();
+        final GpuDevice device = RenderSystem.getDevice();
+        final GpuBuffer pixels = device.createBuffer(() -> "Simulated diagram greeble readback", 9,
+                (long) DIAGRAM_TEXTURE.width * DIAGRAM_TEXTURE.height * pixelSize);
+        final CommandEncoder encoder = device.createCommandEncoder();
+        encoder.copyTextureToBuffer(texture, pixels, 0L, () -> {
+            try (GpuBuffer.MappedView view = encoder.mapBuffer(pixels, true, false)) {
+                // The screen may have been closed or re-initialised while the copy was in flight.
+                if (this.targets == targets) {
+                    this.placeGreebles(diagramX, diagramY, view.data().order(ByteOrder.nativeOrder()), pixelSize);
+                }
+            } finally {
+                pixels.close();
+            }
+        }, 0);
+    }
+
+    private void placeGreebles(final int diagramX, final int diagramY, final ByteBuffer pixels, final int pixelSize) {
         final RandomSource random = this.subLevel.getLevel().getRandom();
 
         final HashMap<Identifier, Tuple<Greeble, ArrayList<Greeble.TextureSlice>>> greebleSet = this.genGreebleSet(random);
@@ -331,8 +350,6 @@ public class DiagramScreen extends AbstractSimiScreen {
 
         final int padding = 10;
         final int greebles = 8;
-
-        this.finalFbo.bindRead();
 
         for (int i = 0; i < greebles; i++) {
             final Identifier greebleID = this.randomGreeble(random);
@@ -355,18 +372,18 @@ public class DiagramScreen extends AbstractSimiScreen {
                 }
             }
 
-            if (intersects || this.aabbInFramebuffer(box)) {
+            if (intersects || aabbInFramebuffer(box, pixels, pixelSize)) {
                 continue;
             }
 
             placed.add(box);
             this.addRenderableOnly(new GreebleRenderable(x + diagramX, y + diagramY, greeble.width(), greeble.height(), greeble.texture(), slice));
         }
-
-        AdvancedFbo.unbind();
     }
 
-    private boolean aabbInFramebuffer(final AABB aabb) {
+    // Same region and test as the old glReadPixels version: rows are stored bottom-up, and the top byte of each
+    // packed RGBA pixel is its alpha.
+    private static boolean aabbInFramebuffer(final AABB aabb, final ByteBuffer pixels, final int pixelSize) {
         final int minX = (int) aabb.minX;
         final int minY = (int) (DIAGRAM_TEXTURE.height - aabb.minY);
         final int maxX = (int) aabb.maxX;
@@ -375,19 +392,19 @@ public class DiagramScreen extends AbstractSimiScreen {
         final int width = Math.abs(maxX - minX);
         final int height = Math.abs(maxY - minY);
 
-        final int length = width * height;
-        final int[] buffer = new int[length];
-        glReadPixels(minX, minY - height, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-
-        for (int i = 0; i < length; i++) {
-            final int color = buffer[i] >> 24;
-            if (color != 0) return true;
+        for (int row = minY - height; row < minY; row++) {
+            for (int column = minX; column < minX + width; column++) {
+                final int color = pixels.getInt((column + row * DIAGRAM_TEXTURE.width) * pixelSize) >> 24;
+                if (color != 0) return true;
+            }
         }
         return false;
     }
 
     private void renderContents(final SubLevel subLevel, final float partialTicks) {
-        if (VeilLevelPerspectiveRenderer.isRenderingPerspective()) {
+        // PORT-NOTE(mc26.1): was a guard against Veil perspective renders; guard against re-entering our own
+        // diagram render instead.
+        if (SimpleSubLevelGroupRenderer.RENDERING_SIMPLE) {
             return;
         }
 
@@ -401,7 +418,7 @@ public class DiagramScreen extends AbstractSimiScreen {
             return;
         }
 
-        if (this.fbo == null) {
+        if (this.targets == null) {
             return;
         }
 
@@ -426,43 +443,25 @@ public class DiagramScreen extends AbstractSimiScreen {
         final Pose3dc renderPose = ((ClientSubLevel) subLevel).renderPose(partialTicks);
         renderPose.transformPosition(CAMERA_POSITION.set(LOCAL_CAMERA_POSITION));
 
-        draw(subLevel, partialTicks, LOCAL_ORIENTATION, PROJECTION_MAT, CAMERA_POSITION, DIAGRAM_TEXTURE.width, DIAGRAM_TEXTURE.height, this.fbo, this.outlineFbo, this.finalFbo, 0.25f, 1.0f, 0x2E3032, 0x696965);
+        draw(subLevel, partialTicks, LOCAL_ORIENTATION, PROJECTION_MAT, CAMERA_POSITION, DIAGRAM_TEXTURE.width, DIAGRAM_TEXTURE.height, this.targets, 0.25f, 1.0f, 0x2E3032, 0x696965);
     }
 
-    public static void draw(final SubLevel subLevel, final float partialTicks, final Quaternionf localOrientation, final Matrix4f projMatrix, final Vector3d cameraPos, final float inWidth, final float inHeight, final AdvancedFbo fbo, final AdvancedFbo outlineFbo, final AdvancedFbo finalFbo, final float paletteOffset, final float fadeScale, final int lineColor, final int lineShadowColor) {
-        fbo.bind(true);
-        fbo.clear();
+    // PORT-NOTE(mc26.1): Veil framebuffers and its "simulated:diagram" post pipeline replaced by vanilla render
+    // targets and DiagramOutlinePass (same shader and uniforms).
+    public static void draw(final SubLevel subLevel, final float partialTicks, final Quaternionf localOrientation, final Matrix4f projMatrix, final Vector3d cameraPos, final float inWidth, final float inHeight, final DiagramFramebuffers targets, final float paletteOffset, final float fadeScale, final int lineColor, final int lineShadowColor) {
+        targets.clearScene();
 
         final Pose3dc renderPose = ((ClientSubLevel) subLevel).renderPose(partialTicks);
         final Quaternionf orientation = new Quaternionf(renderPose.orientation()).conjugate();
         orientation.premul(localOrientation.conjugate(new Quaternionf()));
 
-        SimpleSubLevelGroupRenderer.renderChain(subLevel, fbo, new Matrix4f(), projMatrix, cameraPos, orientation, partialTicks);
+        SimpleSubLevelGroupRenderer.renderChain(subLevel, targets, new Matrix4f(), projMatrix, cameraPos, orientation, partialTicks);
 
-        final PostProcessingManager manager = VeilRenderSystem.renderer().getPostProcessingManager();
-        final PostPipeline pipeline = manager.getPipeline(Simulated.path("diagram"));
-
-        if (pipeline != null) {
-            final Color LINE_SHADOW_COLOR = new Color(lineShadowColor);
-            final Color LINE_COLOR = new Color(lineColor);
-
-            pipeline.getUniformSafe("LineColor").setVector((LINE_COLOR.getRed()) / 255.0f, (LINE_COLOR.getGreen()) / 255.0f, (LINE_COLOR.getBlue()) / 255.0f, 1.0f);
-            pipeline.getUniformSafe("LineShadowColor").setVector((LINE_SHADOW_COLOR.getRed()) / 255.0f, (LINE_SHADOW_COLOR.getGreen()) / 255.0f, (LINE_SHADOW_COLOR.getBlue()) / 255.0f, 1.0f);
-            pipeline.getUniformSafe("InSize").setVector(inWidth, inHeight);
-            pipeline.getUniformSafe("PaletteOffset").setFloat(paletteOffset);
-            pipeline.getUniformSafe("FadeScale").setFloat(fadeScale);
-        }
-
-        final PostPipeline.Context context = manager.getPostPipelineContext();
-        context.setFramebuffer(Simulated.path("diagram"), fbo);
-        context.setFramebuffer(Simulated.path("diagram_outlined"), outlineFbo);
-        context.setFramebuffer(Simulated.path("diagram_final"), finalFbo);
-
-        manager.runPipeline(pipeline, false);
+        DiagramOutlinePass.run(targets, inWidth, inHeight, paletteOffset, fadeScale, lineColor, lineShadowColor);
     }
 
     @Override
-    protected void renderWindowBackground(final GuiGraphics graphics, final int mouseX, final int mouseY, final float partialTicks) {
+    protected void renderWindowBackground(final GuiGraphicsExtractor graphics, final int mouseX, final int mouseY, final float partialTicks) {
         graphics.fill(0, 0, this.width, this.height, 0x4fffffff);
     }
 
@@ -581,7 +580,7 @@ public class DiagramScreen extends AbstractSimiScreen {
     }
 
     @Override
-    protected void renderWindow(final GuiGraphics graphics, final int mouseX, final int mouseY, final float partialTicks) {
+    protected void renderWindow(final GuiGraphicsExtractor graphics, final int mouseX, final int mouseY, final float partialTicks) {
         final Matrix3x2fStack ps = graphics.pose();
 
         if (this.subLevel.isRemoved() || this.diagram.isRemoved()) {
@@ -589,7 +588,7 @@ public class DiagramScreen extends AbstractSimiScreen {
             return;
         }
 
-        this.note.renderWidget(graphics, mouseX, mouseY, partialTicks);
+        this.note.extractWidgetRenderState(graphics, mouseX, mouseY, partialTicks);
         this.renderContents(this.subLevel, partialTicks);
 
         // genuinely how can this be null they are assigned values in the constructor
@@ -617,7 +616,7 @@ public class DiagramScreen extends AbstractSimiScreen {
         ps.popMatrix();
 
         for (final DiagramForceGroupToggle widget : this.forceToggleWidgets) {
-            widget.render(graphics, mouseX, mouseY, partialTicks);
+            widget.extractRenderState(graphics, mouseX, mouseY, partialTicks);
         }
 
         // Render diagram
@@ -626,7 +625,7 @@ public class DiagramScreen extends AbstractSimiScreen {
         // Main background
         DIAGRAM_TEXTURE.render(graphics, 0, 0);
 
-        renderFBO(graphics, this.finalFbo, DIAGRAM_TEXTURE.width, DIAGRAM_TEXTURE.height);
+        renderFBO(graphics, this.targets, DIAGRAM_TEXTURE.width, DIAGRAM_TEXTURE.height);
         graphics.nextStratum();
 
         final String text = this.subLevel.getName();
@@ -634,7 +633,7 @@ public class DiagramScreen extends AbstractSimiScreen {
         if (text != null && !text.isEmpty()) {
             final int footerW = this.font.width(text);
             graphics.fill(DIAGRAM_TEXTURE.width - footerW - 7, DIAGRAM_TEXTURE.height - 5 - this.font.lineHeight, DIAGRAM_TEXTURE.width - 4, DIAGRAM_TEXTURE.height - 3, BG_COLOR.getRGB());
-            graphics.drawString(this.font, text, DIAGRAM_TEXTURE.width - footerW - 5, DIAGRAM_TEXTURE.height - 3 - this.font.lineHeight, TEXT_COLOR.getRGB(), false);
+            graphics.text(this.font, text, DIAGRAM_TEXTURE.width - footerW - 5, DIAGRAM_TEXTURE.height - 3 - this.font.lineHeight, TEXT_COLOR.getRGB(), false);
         }
 
         this.renderArrows(graphics,
@@ -657,7 +656,7 @@ public class DiagramScreen extends AbstractSimiScreen {
     }
 
     @Override
-    protected void renderWindowForeground(final GuiGraphics graphics, final int mouseX, final int mouseY, final float partialTicks) {
+    protected void renderWindowForeground(final GuiGraphicsExtractor graphics, final int mouseX, final int mouseY, final float partialTicks) {
         final Matrix3x2fStack ps = graphics.pose();
 
         this.renderMagnificationHighlight(graphics, mouseX, mouseY, ps);
@@ -671,7 +670,7 @@ public class DiagramScreen extends AbstractSimiScreen {
         super.renderWindowForeground(graphics, mouseX, mouseY, partialTicks);
     }
 
-    private void renderMagnificationHighlight(final GuiGraphics graphics, final int mouseX, final int mouseY, final Matrix3x2fStack ps) {
+    private void renderMagnificationHighlight(final GuiGraphicsExtractor graphics, final int mouseX, final int mouseY, final Matrix3x2fStack ps) {
         final boolean initiallyWithinNote = this.note.contains(MAGNIFYING_CENTER.x, MAGNIFYING_CENTER.y);
 
         this.updateMagnificationBox(mouseX, mouseY);
@@ -706,10 +705,10 @@ public class DiagramScreen extends AbstractSimiScreen {
             final int color = valid ? 0x90ffffff : 0x90ffaaaa;
 
             graphics.fill((int) startX, (int) startY, (int) endX, (int) endY, fillColor);
-            graphics.hLine((int) startX, (int) endX, (int) startY, color);
-            graphics.hLine((int) startX, (int) endX, (int) endY, color);
-            graphics.vLine((int) startX, (int) startY, (int) endY, color);
-            graphics.vLine((int) endX, (int) startY, (int) endY, color);
+            graphics.horizontalLine((int) startX, (int) endX, (int) startY, color);
+            graphics.horizontalLine((int) startX, (int) endX, (int) endY, color);
+            graphics.verticalLine((int) startX, (int) startY, (int) endY, color);
+            graphics.verticalLine((int) endX, (int) startY, (int) endY, color);
 
             ps.popMatrix();
         }
@@ -738,16 +737,16 @@ public class DiagramScreen extends AbstractSimiScreen {
         return dest;
     }
 
-    public static void renderFBO(final GuiGraphics graphics, final AdvancedFbo fbo, final int width, final int height) {
+    public static void renderFBO(final GuiGraphicsExtractor graphics, final DiagramFramebuffers targets, final int width, final int height) {
         final Matrix3x2fStack pose = graphics.pose();
         pose.pushMatrix();
         pose.translate(0, height);
         pose.scale(1, -1);
-        graphics.fill(RenderPipelines.GUI_TEXTURED, TextureSetup.singleTexture(fbo.getColorTextureAttachment(0).getTextureView(), com.mojang.blaze3d.systems.RenderSystem.getSamplerCache().getClampToEdge(com.mojang.blaze3d.textures.FilterMode.NEAREST)), 0, 0, width, height);
+        graphics.fill(RenderPipelines.GUI_TEXTURED, TextureSetup.singleTexture(targets.output().getColorTextureView(), com.mojang.blaze3d.systems.RenderSystem.getSamplerCache().getClampToEdge(com.mojang.blaze3d.textures.FilterMode.NEAREST)), 0, 0, width, height);
         pose.popMatrix();
     }
 
-    public void renderArrows(final GuiGraphics graphics,
+    public void renderArrows(final GuiGraphicsExtractor graphics,
                              final int mouseX,
                              final int mouseY,
                              final int areaOriginX,
@@ -808,7 +807,7 @@ public class DiagramScreen extends AbstractSimiScreen {
     /**
      * Renders a force arrow for a given point force and force group
      */
-    private void renderForceArrow(final GuiGraphics graphics,
+    private void renderForceArrow(final GuiGraphicsExtractor graphics,
                                   final ForceGroup forceGroup,
                                   final ForceClusterFinder.Cluster pointForce,
                                   final double maxArrowLength,
@@ -930,7 +929,7 @@ public class DiagramScreen extends AbstractSimiScreen {
         return x >= padding && x < width - padding && y >= padding && y < height - padding;
     }
 
-    private static void drawLine(final GuiGraphics graphics, int x1, int y1, final int x2, final int y2, final int color, final int inflation) {
+    private static void drawLine(final GuiGraphicsExtractor graphics, int x1, int y1, final int x2, final int y2, final int color, final int inflation) {
         // don't miss none of them pixels! you heard me!
         final int dx = Math.abs(x2 - x1);
         final int dy = Math.abs(y2 - y1);
@@ -967,7 +966,7 @@ public class DiagramScreen extends AbstractSimiScreen {
         return Mth.lerp(partialTicks, this.lastTabOffset, this.tabOffset);
     }
 
-    private void renderCenterOfMass(final GuiGraphics graphics) {
+    private void renderCenterOfMass(final GuiGraphicsExtractor graphics) {
         final Vector3d centerOfMass = new Vector3d(this.subLevel.logicalPose().rotationPoint());
         final Vector2d screenCoords = getScreenCoords(centerOfMass, LOCAL_ORIENTATION, LOCAL_CAMERA_POSITION, PROJECTION_MAT, DIAGRAM_TEXTURE.width, DIAGRAM_TEXTURE.height);
 
@@ -1022,7 +1021,7 @@ public class DiagramScreen extends AbstractSimiScreen {
         this.serverData = data;
     }
 
-    public static void renderTooltip(final GuiGraphics guiGraphics, final int x, final int y, final List<FormattedText> lines) {
+    public static void renderTooltip(final GuiGraphicsExtractor guiGraphics, final int x, final int y, final List<FormattedText> lines) {
         final Font font = Minecraft.getInstance().font;
 
         final Color colorBackground = new Color(0xff3d322a);
@@ -1042,7 +1041,7 @@ public class DiagramScreen extends AbstractSimiScreen {
     public record GreebleRenderable(int x, int y, int width, int height, Identifier texture,
                                     Greeble.TextureSlice slice) implements Renderable {
         @Override
-        public void render(final GuiGraphics guiGraphics, final int i, final int i1, final float v) {
+        public void extractRenderState(final GuiGraphicsExtractor guiGraphics, final int i, final int i1, final float v) {
             guiGraphics.blit(this.texture, this.x, this.y, this.slice.x(), this.slice.y(), this.slice.width(), this.slice.height(), this.width, this.height);
         }
     }

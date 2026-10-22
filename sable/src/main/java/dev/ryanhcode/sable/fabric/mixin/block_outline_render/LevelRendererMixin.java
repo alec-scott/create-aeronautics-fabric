@@ -33,7 +33,7 @@ public abstract class LevelRendererMixin {
     @Nullable
     private ClientLevel level;
 
-    @WrapOperation(method = "renderBlockOutline", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/LevelRenderer;renderHitOutline(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;DDDLnet/minecraft/client/renderer/state/BlockOutlineRenderState;IF)V"))
+    @WrapOperation(method = "renderBlockOutline", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/LevelRenderer;renderHitOutline(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;DDDLnet/minecraft/client/renderer/state/level/BlockOutlineRenderState;IF)V"))
     private void sable$renderHitOutline(final LevelRenderer instance, final PoseStack poseStack,
                                         final VertexConsumer consumer, final double camX, final double camY,
                                         final double camZ, final BlockOutlineRenderState outlineState,

@@ -41,7 +41,8 @@ public class RockCuttingWheelActorRender implements MovementRenderBehaviour {
 
     @Override
     public MovementRenderState getRenderState(final Vec3 camera, final Font textRenderer, final MovementContext context,
-                                              final VirtualRenderWorld renderWorld, final Matrix4f worldMatrix4f) {
+                                              final VirtualRenderWorld renderWorld, final PoseStack.Pose transform,
+                                              final Matrix4f worldMatrix4f) {
         if (VisualizationManager.supportsVisualization(context.world)) {
             return null;
         }
@@ -49,18 +50,22 @@ public class RockCuttingWheelActorRender implements MovementRenderBehaviour {
             context.temporaryData = LerpedFloat.angular();
         }
 
-        final RockCuttingWheelMovementRenderState state = new RockCuttingWheelMovementRenderState(context.localPos);
+        final RockCuttingWheelMovementRenderState state = new RockCuttingWheelMovementRenderState(context.localPos, transform);
         state.wheel = CachedBuffers.partial(OffroadPartialModels.ROCK_CUTTING_WHEEL_WHEEL, context.state);
         state.blockState = context.state;
         state.angle = ((LerpedFloat) context.temporaryData).getValue(AnimationTickHolder.getPartialTicks(context.world));
-        state.light = LevelRenderer.getLightColor(renderWorld, context.localPos);
+        state.light = LevelRenderer.getLightCoords(renderWorld, context.localPos);
         state.world = context.world;
         state.worldMatrix = worldMatrix4f;
         return state;
     }
 
-    private static final class RockCuttingWheelMovementRenderState extends MovementRenderState
-            implements SubmitNodeCollector.CustomGeometryRenderer {
+    // PORT-NOTE(mc26.1): MovementRenderState became an interface. The state now applies the contraption pose and
+    // its own position (Create-Fly used to do this in the caller before render()).
+    private static final class RockCuttingWheelMovementRenderState
+            implements MovementRenderState, SubmitNodeCollector.CustomGeometryRenderer {
+        private final BlockPos pos;
+        private final PoseStack.Pose pose;
         private SuperByteBuffer wheel;
         private BlockState blockState;
         private float angle;
@@ -68,13 +73,17 @@ public class RockCuttingWheelActorRender implements MovementRenderBehaviour {
         private Level world;
         private Matrix4f worldMatrix;
 
-        private RockCuttingWheelMovementRenderState(final BlockPos pos) {
-            super(pos);
+        private RockCuttingWheelMovementRenderState(final BlockPos pos, final PoseStack.Pose pose) {
+            this.pos = pos;
+            this.pose = pose;
         }
 
         @Override
-        public void render(final PoseStack poseStack, final SubmitNodeCollector queue) {
+        public void submit(final PoseStack poseStack, final SubmitNodeCollector queue) {
+            poseStack.pushPose();
+            this.transform(poseStack, this.pose, this.pos);
             queue.submitCustomGeometry(poseStack, RenderTypes.solidMovingBlock(), this);
+            poseStack.popPose();
         }
 
         @Override

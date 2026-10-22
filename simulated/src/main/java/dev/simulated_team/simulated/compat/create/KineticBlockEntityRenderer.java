@@ -6,7 +6,10 @@ import com.zurrtum.create.client.catnip.render.CachedBuffers;
 import com.zurrtum.create.client.catnip.render.SuperByteBuffer;
 import com.zurrtum.create.content.kinetics.base.KineticBlockEntity;
 import com.zurrtum.create.client.flywheel.api.visualization.VisualizationManager;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
@@ -28,7 +31,7 @@ public class KineticBlockEntityRenderer<T extends KineticBlockEntity> extends Sm
                               final net.minecraft.client.renderer.MultiBufferSource bufferSource, final int light, final int overlay) {
         final BlockState state = getRenderedBlockState(blockEntity);
         renderRotatingBuffer(blockEntity, getRotatedModel(blockEntity, state), poseStack,
-                bufferSource.getBuffer(ItemBlockRenderTypes.getMovingBlockRenderType(state)), light);
+                bufferSource.getBuffer(movingBlockRenderType(state)), light);
     }
 
     protected SuperByteBuffer getRotatedModel(final T blockEntity, final BlockState state) {
@@ -40,7 +43,14 @@ public class KineticBlockEntityRenderer<T extends KineticBlockEntity> extends Sm
     }
 
     protected RenderType getRenderType(final T blockEntity, final BlockState state) {
-        return ItemBlockRenderTypes.getMovingBlockRenderType(state);
+        return movingBlockRenderType(state);
+    }
+
+    // PORT-NOTE(mc26.1): ItemBlockRenderTypes is gone; vanilla picks the moving-block type from the model's
+    // translucency flag (see BlockFeatureRenderer), so do the same.
+    private static RenderType movingBlockRenderType(final BlockState state) {
+        final BlockStateModel model = Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state);
+        return model.hasMaterialFlag(BakedQuad.FLAG_TRANSLUCENT) ? RenderTypes.translucentMovingBlock() : RenderTypes.cutoutMovingBlock();
     }
 
     protected void renderRotatingBuffer(final T blockEntity, final SuperByteBuffer buffer, final PoseStack poseStack,

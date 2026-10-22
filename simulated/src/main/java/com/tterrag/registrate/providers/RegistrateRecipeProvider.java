@@ -1,12 +1,14 @@
 package com.tterrag.registrate.providers;
 
+import io.github.fabricators_of_create.porting_lib.DatagenStubs;
+import net.minecraft.world.item.ItemStackTemplate;
 import com.google.common.collect.ImmutableMap;
 import com.tterrag.registrate.AbstractRegistrate;
 import com.tterrag.registrate.util.DataIngredient;
 import com.tterrag.registrate.util.nullness.NonNullSupplier;
-import io.github.fabricators_of_create.porting_lib.tags.Tags;
+import net.fabricmc.fabric.api.tag.convention.v2.ConventionalItemTags;
 import net.fabricmc.api.EnvType;
-import net.fabricmc.fabric.api.datagen.v1.FabricDataOutput;
+import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
 import net.minecraft.advancements.Advancement;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.Criterion;
@@ -65,7 +67,7 @@ public class RegistrateRecipeProvider extends RecipeProvider.Runner implements R
     @Nullable
     private Delegate delegate;
 
-    public RegistrateRecipeProvider(AbstractRegistrate<?> owner, FabricDataOutput output,
+    public RegistrateRecipeProvider(AbstractRegistrate<?> owner, FabricPackOutput output,
                                     CompletableFuture<HolderLookup.Provider> registries) {
         super(output, registries);
         this.owner = owner;
@@ -194,30 +196,21 @@ public class RegistrateRecipeProvider extends RecipeProvider.Runner implements R
     public static final int DEFAULT_SMOKE_TIME = DEFAULT_BLAST_TIME;
     public static final int DEFAULT_CAMPFIRE_TIME = DEFAULT_SMELT_TIME * 3;
 
-    private static final ImmutableMap<RecipeSerializer<? extends AbstractCookingRecipe>, String> COOKING_TYPE_NAMES =
-            ImmutableMap.<RecipeSerializer<? extends AbstractCookingRecipe>, String>builder()
-                    .put(RecipeSerializer.SMELTING_RECIPE, "smelting")
-                    .put(RecipeSerializer.BLASTING_RECIPE, "blasting")
-                    .put(RecipeSerializer.SMOKING_RECIPE, "smoking")
-                    .put(RecipeSerializer.CAMPFIRE_COOKING_RECIPE, "campfire")
-                    .build();
+    // PORT-NOTE(mc26.1): cooking recipe serializers moved; the cooking helpers below are stubbed with the rest of
+    // datagen (see PORTING-26.1.md, Datagen stubs). Nothing calls them yet.
 
     public <T extends ItemLike, S extends AbstractCookingRecipe> void cooking(
             DataIngredient source, RecipeCategory category, Supplier<? extends T> result,
             float experience, int cookingTime, RecipeSerializer<S> serializer,
             AbstractCookingRecipe.Factory<S> factory) {
-        cooking(source, category, result, experience, cookingTime,
-                COOKING_TYPE_NAMES.get(serializer), serializer, factory);
+        throw DatagenStubs.unsupported();
     }
 
     public <T extends ItemLike, S extends AbstractCookingRecipe> void cooking(
             DataIngredient source, RecipeCategory category, Supplier<? extends T> result,
             float experience, int cookingTime, String typeName, RecipeSerializer<S> serializer,
             AbstractCookingRecipe.Factory<S> factory) {
-        SimpleCookingRecipeBuilder.generic(source.toVanilla(this), category, result.get(), experience,
-                        cookingTime, serializer, factory)
-                .unlockedBy("has_" + safeName(source), source.getCriterion(this))
-                .save(this, safeId(result.get()) + "_from_" + safeName(source) + "_" + typeName);
+        throw DatagenStubs.unsupported();
     }
 
     public <T extends ItemLike> void smelting(DataIngredient source, RecipeCategory category,
@@ -227,7 +220,7 @@ public class RegistrateRecipeProvider extends RecipeProvider.Runner implements R
 
     public <T extends ItemLike> void smelting(DataIngredient source, RecipeCategory category,
                                                Supplier<? extends T> result, float experience, int cookingTime) {
-        cooking(source, category, result, experience, cookingTime, RecipeSerializer.SMELTING_RECIPE, SmeltingRecipe::new);
+        throw DatagenStubs.unsupported();
     }
 
     public <T extends ItemLike> void blasting(DataIngredient source, RecipeCategory category,
@@ -237,7 +230,7 @@ public class RegistrateRecipeProvider extends RecipeProvider.Runner implements R
 
     public <T extends ItemLike> void blasting(DataIngredient source, RecipeCategory category,
                                                Supplier<? extends T> result, float experience, int cookingTime) {
-        cooking(source, category, result, experience, cookingTime, RecipeSerializer.BLASTING_RECIPE, BlastingRecipe::new);
+        throw DatagenStubs.unsupported();
     }
 
     public <T extends ItemLike> void smoking(DataIngredient source, RecipeCategory category,
@@ -247,7 +240,7 @@ public class RegistrateRecipeProvider extends RecipeProvider.Runner implements R
 
     public <T extends ItemLike> void smoking(DataIngredient source, RecipeCategory category,
                                               Supplier<? extends T> result, float experience, int cookingTime) {
-        cooking(source, category, result, experience, cookingTime, RecipeSerializer.SMOKING_RECIPE, SmokingRecipe::new);
+        throw DatagenStubs.unsupported();
     }
 
     public <T extends ItemLike> void campfire(DataIngredient source, RecipeCategory category,
@@ -257,8 +250,7 @@ public class RegistrateRecipeProvider extends RecipeProvider.Runner implements R
 
     public <T extends ItemLike> void campfire(DataIngredient source, RecipeCategory category,
                                                Supplier<? extends T> result, float experience, int cookingTime) {
-        cooking(source, category, result, experience, cookingTime, RecipeSerializer.CAMPFIRE_COOKING_RECIPE,
-                CampfireCookingRecipe::new);
+        throw DatagenStubs.unsupported();
     }
 
     public <T extends ItemLike> void stonecutting(DataIngredient source, RecipeCategory category,
@@ -357,7 +349,7 @@ public class RegistrateRecipeProvider extends RecipeProvider.Runner implements R
                                            Supplier<? extends T> result, @Nullable String group) {
         shaped(category, result.get(), 3)
                 .pattern("W#W").pattern("W#W")
-                .define('W', source.toVanilla(this)).define('#', Tags.Items.RODS_WOODEN).group(group)
+                .define('W', source.toVanilla(this)).define('#', ConventionalItemTags.WOODEN_RODS).group(group)
                 .unlockedBy("has_" + safeName(source), source.getCriterion(this)).save(this, safeKey(result.get()));
     }
 
@@ -365,7 +357,7 @@ public class RegistrateRecipeProvider extends RecipeProvider.Runner implements R
                                                Supplier<? extends T> result, @Nullable String group) {
         shaped(category, result.get())
                 .pattern("#W#").pattern("#W#")
-                .define('W', source.toVanilla(this)).define('#', Tags.Items.RODS_WOODEN).group(group)
+                .define('W', source.toVanilla(this)).define('#', ConventionalItemTags.WOODEN_RODS).group(group)
                 .unlockedBy("has_" + safeName(source), source.getCriterion(this)).save(this, safeKey(result.get()));
     }
 
@@ -405,7 +397,8 @@ public class RegistrateRecipeProvider extends RecipeProvider.Runner implements R
     }
 
     public ShapelessRecipeBuilder shapeless(RecipeCategory category, ItemStack result) {
-        return delegate().shapeless(category, result);
+        // PORT-NOTE(mc26.1): RecipeProvider.shapeless takes an ItemStackTemplate now.
+        return delegate().shapeless(category, ItemStackTemplate.fromNonEmptyStack(result));
     }
 
     public ShapelessRecipeBuilder shapeless(RecipeCategory category, ItemLike result) {

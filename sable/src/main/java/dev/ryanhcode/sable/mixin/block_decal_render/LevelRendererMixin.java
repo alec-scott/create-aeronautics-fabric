@@ -1,5 +1,6 @@
 package dev.ryanhcode.sable.mixin.block_decal_render;
 
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.ryanhcode.sable.Sable;
@@ -35,8 +36,9 @@ public abstract class LevelRendererMixin {
     @Nullable
     private ClientLevel level;
 
-    @Inject(method = "renderBlockDestroyAnimation", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;translate(DDD)V", shift = At.Shift.AFTER))
-    private void sable$transformBlockDamage(final PoseStack poseStack, final net.minecraft.client.renderer.MultiBufferSource.BufferSource bufferSource, final LevelRenderState levelRenderState, final CallbackInfo ci, @Local final BlockBreakingRenderState renderState, @Local final BlockPos pos) {
+    // PORT-NOTE(mc26.1): renderBlockDestroyAnimation became submitBlockDestroyAnimation (submit node collector).
+    @Inject(method = "submitBlockDestroyAnimation", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;translate(DDD)V", shift = At.Shift.AFTER))
+    private void sable$transformBlockDamage(final PoseStack poseStack, final SubmitNodeCollector submitNodeCollector, final LevelRenderState levelRenderState, final CallbackInfo ci, @Local final BlockBreakingRenderState renderState, @Local final BlockPos pos) {
         final Vec3 plotPos = Vec3.atLowerCornerOf(pos);
         final ClientSubLevel subLevel = (ClientSubLevel) Sable.HELPER.getContaining(this.level, plotPos);
         if (subLevel == null) {

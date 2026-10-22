@@ -9,7 +9,7 @@ import net.minecraft.world.item.crafting.CustomRecipe;
 
 public final class FabricSimRecipeTypes {
     public static final RecipeSerializer<PortableEngineDyeingRecipe> PORTABLE_ENGINE_DYEING =
-            new CustomRecipe.Serializer<>(PortableEngineDyeingRecipe::new);
+            PortableEngineDyeingRecipe.SERIALIZER;
 
     private FabricSimRecipeTypes() {
     }

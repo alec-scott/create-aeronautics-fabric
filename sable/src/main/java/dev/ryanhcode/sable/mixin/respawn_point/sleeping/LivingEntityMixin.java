@@ -30,7 +30,8 @@ public abstract class LivingEntityMixin extends Entity {
         this.setPos(JOMLConversion.toMojang(Sable.HELPER.projectOutOfSubLevel(this.level(), coords)));
     }
 
-    @Redirect(method = "method_18404", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;setPos(DDD)V"))
+    // PORT-NOTE(mc26.1): the intermediary name method_18404 is the stopSleeping lambda in unobfuscated 26.1.
+    @Redirect(method = "lambda$stopSleeping$0", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;setPos(DDD)V"))
     private void sable$stopSleeping(final LivingEntity instance, final double x, final double y, final double z) {
         final double halfHeight = this.getBoundingBox().getYsize() / 2.0;
 

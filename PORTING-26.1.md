@@ -40,7 +40,7 @@ back to `maven.modrinth:create-fly:${create_fly_version}`.
 |---|---|---|
 | minecraft_version | 1.21.11 | 26.1.2 |
 | fabric_version | 0.141.6+1.21.11 | 0.155.3+26.1.2 |
-| fabric_loader_version | 0.18.3 | 0.19.2 |
+| fabric_loader_version | 0.18.3 | 0.20.1 (0.19.2 bundles a buggy Mixin; see Runtime mixin fixes) |
 | create_fly | 1.21.11-6.0.9-5 | 26.1.2-6.0.9-4 (local jar) |
 | create_mod_version | 6.0.9-5 | 6.0.9-4 |
 | forgeconfigapiport_version | 21.11.1 | 26.1.5 |
@@ -54,9 +54,9 @@ back to `maven.modrinth:create-fly:${create_fly_version}`.
 | scalablelux_version | 0.1.6 | 0.2.0+fabric.2b63825 |
 
 Still pinned to 1.21.1 artifacts (need a decision):
-- `veil-fabric-1.21.1` (compileOnly) — most of the Veil API used is vendored in `simulated/src/main/java/foundry/veil`.
+- ~~`veil-fabric-1.21.1`~~ — removed; replaced with vanilla rendering. See [Veil replacement](#veil-replacement).
 - `sable-companion-common-1.21.1` — no 26.1 artifact published; bundled into the Sable jar.
-- Porting Lib `3.1.0-beta.39+1.21.1` — **cannot work on 26.1** (intermediary-mapped). `unpackPortingLibCompat` in `simulated/build.gradle` bundles its datagen classes into the Simulated jar. Replace or drop.
+- ~~Porting Lib `3.1.0-beta.39+1.21.1`~~ — removed; its datagen API is stubbed. See [Datagen stubs](#datagen-stubs).
 
 ## Code fixes
 
@@ -107,27 +107,99 @@ Access wideners (validated with `./gradlew validateAccessWidener`):
 
 Runtime-only risks (compile won't catch these):
 - [x] `ParticleMixin` injected into `getLightColor` by name; retargeted to `getLightCoords`.
-- [ ] Audit all string-targeted mixins (`method = "..."`) for renamed 26.1 methods. Run the client and watch for mixin apply failures.
+- [x] `GirderBlockMixin` hooks Create-Fly `GirderBlock.isConnected`, which takes `BlockAndLightGetter` in 26.1.
+- [x] `PrimaryLevelDataMixin`: `parse` lost its `WorldOptions` arg; `setTagData` is `(CompoundTag, UUID)`.
+- [x] `CreateWorldScreenMixin`: `createNewWorld` takes `(LayeredRegistryAccess, WorldDataAndGenSettings,
+  Optional<GameRules>)`; the old `@Local WorldData` no longer exists.
+- [x] Sodium 0.9 `setupTerrain` takes `Matrix4f`; vanilla `prepareChunkRenders` takes only `Matrix4fc`.
+- [ ] Audit all string-targeted mixins (`method = "..."`) for renamed 26.1 methods. Simulated's config has
+  `"defaultRequire": 1`, so a mismatched injection fails at startup — run the client and fix whatever it reports.
+- [ ] End Sea preset: verify a new End Sea world starts with the dragon defeated (new `ServerLevelMixin`).
+- [ ] Sub-level fans: `EncasedFanRenderState` lost `lightBehind/lightInFront`; Create-Fly now bakes light into its
+  render state, so fans inside sub-levels may light from plot space. Check visually.
 
-### Simulated — 622 → 514 errors
+### Simulated — 622 → ~46 errors
 
-Done (same patterns as Sable): `ChunkPos` (6), `LightTexture` → `LightCoordsUtil` (`FULL_BLOCK` → `pack(15, 0)`),
-`getLightColor` → `getLightCoords` (incl. the `MagnetFieldParticle*` overrides), `displayClientMessage`,
-render-state packages, `EntityType.is`, and `Level.random` (now protected) → `getRandom()` (33).
+Done:
+- Sable patterns: `ChunkPos`, `LightTexture` → `LightCoordsUtil` (`FULL_BLOCK` → `pack(15, 0)`), `getLightColor` →
+  `getLightCoords` (incl. `MagnetFieldParticle*` overrides), `displayClientMessage`, render-state packages,
+  `EntityType.is`, `Level.random` → `getRandom()`.
+- Datagen stubbed (see [Datagen stubs](#datagen-stubs)); Registrate's cooking-recipe helpers stubbed (no callers).
+- **Registrate runtime** (`com/tterrag/registrate`):
+  - creative tabs: `itemgroup.v1` → `creativetab.v1` (`FabricCreativeModeTab`, `CreativeModeTabEvents.modifyOutputEvent`)
+  - `FabricRegistryBuilder.createSimple` → `create`
+  - menus: `screenhandler.v1` → `menu.v1` (`ExtendedMenuType`, `ExtendedMenuProvider`)
+  - `FuelRegistryEvents` → `FuelValueEvents`, `CompostingChanceRegistry` → `CompostableRegistry`
+  - block colors: `BlockColor` → `List<BlockTintSource>` via `BlockColorRegistry`
+  - **block render layers are gone in 26.1**: each quad's layer comes from its texture's transparency.
+    `BlockBuilder.addLayer` is kept as a documented no-op.
+  - fluids: `FluidRenderHandlerRegistry`/`SimpleFluidRenderHandler` → `FluidRenderingRegistry.register(still, flowing,
+    FluidModel.Unbaked)`; `renderType(translucent)` now sets `Material(..., forceTranslucent = true)`.
+- `GuiGraphics` → `GuiGraphicsExtractor` (type + methods: `drawString` → `text`, `drawCenteredString` → `centeredText`,
+  `hLine/vLine` → `horizontalLine/verticalLine`, `renderItem` → `item`, ...). Screen/widget overrides:
+  `render` → `extractRenderState`, `renderBackground` → `extractBackground`, `renderWidget` →
+  `extractWidgetRenderState`, Create-Fly `renderBg(g, pt, mx, my)` → `extractBackground(g, mx, my, pt)`.
+  `AbstractSimiContainerScreen` takes the window size in its constructor (`setWindowSize` is gone).
+- Model/geometry package moves (`BakedQuad`, `SimpleModelWrapper`, `TextureSlots`, `BlockStateModel`,
+  `BlockModelPart` → `BlockStateModelPart`, `BlockModelRotation`, `CuboidItemModelWrapper.computeExtents`).
+- `SimRenderTypes`: pipelines use `ColorTargetState`/`DepthStencilState`; `MOVING_BLOCK_SAMPLER` re-created locally;
+  `Sheets.solidBlockSheet` → `cutoutBlockSheet`; `entityCutoutNoCull` → `entityCutout`.
+- `KineticBlockEntityRenderer`: `ItemBlockRenderTypes` gone; moving-block type picked from the model's
+  `FLAG_TRANSLUCENT`, as vanilla does.
+- `SableCreateBlockEntityRenderer.ImmediateCollector` matched to 26.1 `SubmitNodeCollector`
+  (new `submitItem`, reordered `submitModelPart` params, `submitBlock` removed, new `submitBreakingBlockModel`).
+- `SimpleSubLevelGroupRenderer`: blocks tesselated full-bright via `ModelBlockRenderer`; `LightTexture` refresh dropped.
+- `FirstPersonItemFocus`: FOV/projection now from `CameraRenderState` (world) and a HUD `Projection` (hand).
+- World presets (End Sea): see "Runtime-only risks" below; dragon fight is now `EnderDragonFight` saved data, seeded
+  by the new `world_presets.ServerLevelMixin`.
+- Misc: `ClickType` → `ContainerInput`, `CriterionValidator` → `ValidationContextSource`, dye colour via
+  `DataComponents.DYE` and `SimColors.dyeItem(color)`, `AllKeys.isKeyDown` → `InputConstants.isKeyDown(window, key)`,
+  `AllKeys.hasShiftDown` → `Minecraft.hasShiftDown`, `PortableEngineDyeingRecipe` uses a unit `RecipeSerializer`,
+  `ShapelessRecipe(CommonInfo, CraftingBookInfo, ItemStackTemplate, ...)`, `Entity.interact(player, hand, location)`
+  (merged with `interactAt`), `Holder.components()/areComponentsBound()` on `DeferredHolder`, saved-data ids are
+  `Identifier` (Simulated data files move to `data/simulated/` too).
 
-Largest remaining clusters:
-- **Datagen, ~110 errors**: vendored Registrate providers (`RegistrateBlockLootTables` alone has 39 + 38 `super` errors),
-  `FabricDataOutput` (32), `FabricTagProvider`, `SimpleFabricLootTableProvider`. Generated resources are already
-  committed in `src/generated/resources`, so one option is to exclude datagen from the 26.1 build for now and port it later.
-- **`GuiGraphics` → `GuiGraphicsExtractor`** (78)
-- **Item/block model API** (~40): `SimpleModelWrapper`, `BakedQuad`, `BlockStateModel`, `BlockModelPart`, `ItemRenderer`,
-  `BlockColor`, `getBlockRenderer()`, `solidBlockSheet()`, `withBlend`. `PhysicsStaffItemModel`, `PlungerLauncherItemModel`.
-- `SimpleSubLevelGroupRenderer` uses the old `LightTexture` object (`gameRenderer.lightTexture()`); needs the `Lightmap` API.
-- Fabric API package moves (listed below), `EndDragonFight`, `InventoryStorage`, menu service, key input (`isKeyDown`).
+Finished (✅ Simulated compiles, 2026-10-22):
+- [x] **Veil** — replaced with vanilla; see [Veil replacement](#veil-replacement).
+- [x] **Custom item models** (`PhysicsStaffItemModel`, `PlungerLauncherItemModel`): layers no longer carry a render
+  type in 26.1 (each quad picks one), so `BakedItemModelPart.submit` draws them through `submitCustomGeometry`
+  with the original render type (keeps the glowing core/cube). `SpecialModelRenderer.submit` lost the display
+  context, so it is carried in `RenderData`; `ItemModel.Unbaked.bake` gained a transformation, applied as the
+  layer's local transform like vanilla models. `PartialItemModelRenderer` (a no-op shim) got a `BlockStateModel`
+  overload. **Verify visually.**
+- [x] **Steering wheel**: ported like Create-Fly's `WaterWheelRenderer` (`BlockStateModel`, `collectParts(random, list)`,
+  `materialInfo().sprite()`, `particleMaterial().sprite()`, `createForBlock(..., Pose)`).
+- [x] **Create-Fly API**: large cog shaft angle re-implemented locally (Create-Fly inlined it, same formula);
+  `SuperByteBuffer` is a `Transform` (no `getTransforms`/`pushPose`); throttle-lever helpers take any `Transform`;
+  `partialDirectional` takes `Function<Direction, Pose>`; `ItemContainerContents.stream()` → `allItemsCopyStream()`.
 
-### Offroad / Aeronautics — not compiled yet (blocked on Simulated)
+### Offroad — ✅ compiles
 
-External breakage seen in the earlier diagnostic run:
+Sable/Simulated patterns (`Level.random`, `getLightCoords`, overlay message, `END_LEVEL_TICK`), plus
+`RockCuttingWheelActorRender`: Create-Fly's `MovementRenderState` became an interface and `getRenderState` now gets the
+contraption `Pose`; the state applies `transform(matrices, pose, pos)` itself (the caller used to). **Verify the
+wheel renders in the right place on moving contraptions.**
+
+### Aeronautics — ✅ compiles (gametests too)
+
+- Sable/Simulated patterns (`Level.random` ×28, `LightTexture`, particle `getLightCoords` overrides, saved-data ids,
+  `getLightDampening`).
+- `ClientBalloonEffectRenderer` (unused, Veil-based) excluded in `gradle/fabric-module.gradle`.
+- `AeronauticsFabricClient`: levitite blend fluid registered with `FluidRenderingRegistry` + translucent `Material`s;
+  `BlockRenderLayerMap` calls removed. **Levitite and pearlescent levitite textures are fully opaque**, so their
+  generated block models now use `"force_translucent": true` (hand-edited, see Datagen stubs list). The hot-air
+  burner's cutout comes from its texture alpha.
+- `FireBlock.setFlammable` is private → Fabric `FlammableBlockRegistry` (burn = flammability, spread = encouragement).
+- **Levitite fluid physics** moved to `LevititeBlendFluidBehavior` (Fabric `EntityFluidInteractionRegistry`):
+  26.1 rewrote entity fluid handling (`EntityFluidInteraction`), so the old `EntityMixin` current injection and the
+  `LivingEntityMixin` travel override (deleted) are replaced by `handleFluidInteractionUpdate` (same upward current)
+  and `travelInFluid` (same buoyant swimming). The eye-in-fluid → water bridge (air/drowning) is kept.
+  Differences to verify in game: jumping now uses vanilla's `jumpInLiquid` (old code added the impulse itself;
+  shallow-fluid jumps may differ slightly), and whether falling into levitite should cancel fall damage (the old
+  code's return value may or may not have done that; nothing does now).
+
+### Reference: external breakage seen in the first diagnostic run (all handled)
+
 
 Minecraft:
 - [ ] `FirstPersonItemFocus` (simulated) uses `GameRenderer.getFov`; switch to `Camera.getFov()`
@@ -152,20 +224,140 @@ Create Fly 26.1 no longer has:
 - [ ] `AllTags`, `foundation.block.DyedBlockList`, `SafeBlockEntityRenderer`, `CustomStressImpactTooltipProvider`
 - [ ] Most of `foundation.data` (only `foundation.data.recipe` remains)
 
+## Runtime mixin fixes (client + server smoke pass, 2026-10-22)
+
+`runProductionServerSmoke` and `runProductionClientSmoke` both pass. The client smoke now waits for the loading
+overlay to close (see `AeronauticsFabricClient`), so it covers the full resource reload: atlases, models, shaders.
+It does **not** join a world, so nothing here proves in-world rendering or physics.
+
+Mixin configs use `defaultRequire: 1`, so every stale target crashes startup, one at a time
+(`-Dmixin.ignoreRequired` doesn't help). Run the static audit first instead (see Tips). Patterns fixed:
+
+| 1.21.11 | 26.1 | Where |
+|---|---|---|
+| `method_XXXX` (intermediary lambda names) | `lambda$<name>$N` (look up with `javap -p`) | sable `respawn_point/sleeping`, `sculk_vibrations`; aeronautics gametest `GameTestBatchFactoryMixin` |
+| `BlockState.is(Block)` | `is(Ljava/lang/Object;)Z` (`TypedInstance.is`), handler param `Object` | simulated `LinkedControllerItemMixin`, aeronautics `BoilerDataMixin` |
+| `GameRenderer.pick(F)` | `Minecraft.pick(F)` (mixins renamed `MinecraftMixin`) | sable `clip_overwrite`, simulated `throttle_lever` |
+| `Camera.setup(...)` | `Camera.update(DeltaTracker)` + private `alignWithEntity(float)` | sable `camera_zoom`, `entity_sublevel_collision`, fabric `camera_rotation` |
+| `GameRenderer.updateCamera` | `GameRenderer.update(DeltaTracker, boolean)` | sable `new_camera_types`, `entities_turn_with_sub_levels` |
+| `renderBlockDestroyAnimation` | `extractBlockDestroyAnimation` / `submitBlockDestroyAnimation` | sable `block_decal_render` |
+| `client/renderer/state/{Camera,BlockOutline}RenderState` in descriptor strings | `client/renderer/state/level/...` | sable `block_outline_render`, `block_entity_render`; simulated `laser` |
+| `LevelRenderer.renderLevel(alloc, dt, Z, Camera, 3×Matrix4f, fog, Vector4f, Z)` | `(alloc, dt, Z, CameraRenderState, Matrix4fc, fog, Vector4f, Z, ChunkSectionsToRender)`; projection is a local in `GameRenderer.renderLevel` (captured with `@Local(ordinal = 0) Matrix4f`) | simulated `end_sea`, `laser`, `physics_staff`; aeronautics `burner_flame` |
+| `Camera.getNearPlane()` | `getNearPlane(float fov)` | sable `entity_swimming` |
+| `FogRenderer` fog colour | `computeFogColor(..., Vector4f dest)` at `RETURN` | aeronautics `levitite/FogRendererMixin` |
+| `GuiGraphics.renderItem` | `GuiGraphicsExtractor.item(LivingEntity, Level, ItemStack, III)` | simulated `physics_staff/GuiGraphicsMixin` |
+| `CreativeModeInventoryScreen.render` | `extractRenderState` | simulated `creative_tab_sections` |
+| `@Local` LVT in `Block.dropResources`-style lambdas | extra captured `RandomSource` local | sable `entity_kicking/BlockMixin` |
+
+Non-mixin runtime fixes:
+- **Fabric Loader 0.19.2 → 0.20.1.** It bundles sponge-mixin 0.17.5; 0.17.2 NPE'd applying the `CameraType` enum mixin.
+- `LegacyItemTooltips`: item components aren't bound at client init, so `getDefaultInstance().getRarity()` threw
+  "Components not bound yet". Both tooltip palettes are now built up front and chosen at tooltip time.
+
 ## Next steps
 
 1. ~~Fix Sable~~ ✅
-2. Decide how to handle Simulated's datagen (port it now, or exclude it for the 26.1 build and port later).
-3. Simulated: `GuiGraphics` rename, then the model API, then the rest. Then Offroad and Aeronautics.
+2. ~~Decide on Simulated's datagen~~ ✅ stubbed (see Datagen stubs).
+3. ~~Simulated, Offroad, Aeronautics compile~~ ✅ (2026-10-22). The 4-in-1 jar builds.
 4. Decide on replacements for the dropped Create Fly classes and for Porting Lib.
-5. Run `runServer`, `runClient`, then `runGameTest` / `runClientGameTest` and the production smoke tasks.
-   Verify sub-level rendering both with and without Sodium.
+5. ~~Production server and client smoke~~ ✅ (2026-10-22).
+6. Run `runClient`, join a world and work through the in-game checks (diagram/Veil replacement, levitite, End Sea,
+   sub-level rendering with and without Sodium, rock cutting wheel). Then `runGameTest` / `runClientGameTest`.
 
 Decompiled 26.1.2 sources: run `./gradlew :sable:genSources`, then unzip
 `.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-*/26.1.2/*-sources.jar` somewhere to grep.
 
+## Veil replacement
+
+**Status:** done in Simulated (2026-10-22); needs in-game verification. Upstream (NeoForge 1.21.1) still uses Veil and
+has no 26.1 plans ([#909](https://github.com/Creators-of-Aeronautics/Simulated-Project/issues/909),
+[#706](https://github.com/Creators-of-Aeronautics/Simulated-Project/issues/706)), so there is nothing upstream to reuse.
+
+Veil was only `compileOnly` (1.21.1, intermediary-mapped) and never shipped, so on 1.21.11 Fabric these paths
+probably crashed if reached. What each use became:
+
+| Veil | Vanilla 26.1 replacement |
+|---|---|
+| `AdvancedFbo` ×3 per diagram (scene, "outlined", final) | `DiagramFramebuffers`: a scene `TextureTarget` (colour + depth) and an output `TextureTarget`. The "outlined" FBO was never drawn to, so it was dropped. |
+| `fbo.bind()` / dynamic FBO | `RenderSystem.outputColorTextureOverride` / `outputDepthTextureOverride` (what GUI picture-in-picture renderers use) |
+| post pipeline `simulated:diagram` (one `veil:blit` stage, shader `contraption_diagram/outline_diagram`) | `DiagramOutlinePass`: a registered `RenderPipeline` drawn as a fullscreen triangle into the output target. Shader at `assets/simulated/shaders/core/diagram_outline.fsh`; body byte-identical to the Veil shader, uniforms moved into a `DiagramConfig` std140 block, `oneTexel` derived from `InSize`. Vertex shader is vanilla `core/screenquad` (same pos→uv mapping). |
+| `glReadPixels` on the bound final FBO (greeble placement) | async `CommandEncoder.copyTextureToBuffer`; greebles are placed in the callback with the same region/alpha test (native byte order, rows bottom-up). |
+| `LevelPerspectiveCamera.setup(...).rotation()` | the orientation passed in (Veil's `setup` sets `rotation()` to it; confirmed from bytecode) |
+| `VeilLevelPerspectiveRenderer.isRenderingPerspective()` | `SimpleSubLevelGroupRenderer.RENDERING_SIMPLE` (re-entrancy guard) |
+| `EndSeaShadowRenderer.renderShadowMap(VeilRenderLevelStageEvent...)` | removed; it was an empty, never-called method (the class is a Fabric no-op) |
+
+- The `veil-fabric-1.21.1` dependency and `veil_version` were removed. The vendored `foundry/veil` API in Simulated
+  (`VeilPacketManager`, colours, etc.) is our own code and stays.
+- [ ] Verify in game: diagram screen and sticky notes render, outlines/dither/fade look like 1.21.1 NeoForge,
+  greebles avoid the contraption, no GL errors in the log.
+- [ ] `assets/simulated/pinwheel/**` (Veil-format shaders, post pipelines, framebuffers) is no longer loaded by anything
+  on this branch. Delete once the vanilla diagram is verified (the laser/rope/end-sea ones were already superseded).
+- [ ] Aeronautics: `ClientBalloonEffectRenderer` (unused) and the Sodium `SodiumWorldRendererMixin` (already excluded)
+  import Veil; handle when Aeronautics compiles.
+
+## Datagen stubs
+
+**Status:** datagen is stubbed on the 26.1 branch (decided 2026-10-22). The game runs from the committed JSON in
+`*/src/generated/resources`; datagen code compiles but cannot run.
+
+### Why
+- Datagen is a dev-time tool that writes the mod's JSON (models, blockstates, item definitions, loot tables,
+  recipes, tags, advancements, lang, sounds). The game only reads the JSON; datagen code never runs in game.
+- Registrate (vendored in `simulated/src/main/java/com/tterrag/registrate`) declares datagen inline with
+  registration: `SimBlocks`, `SimItems`, `OffroadBlocks` etc. call `.blockstate(...)`, `.loot(...)`,
+  `.recipe(...)`, `.model(...)`, `.tag(...)`. So datagen types must exist at compile time even if never run.
+- Registrate's model/blockstate providers were built on **Porting Lib** generators, which have no 26.1 release
+  (latest is 1.21.1, intermediary-mapped, unusable on unobfuscated 26.1).
+
+### What was done
+- `simulated/src/datagenStubs/java/io/github/fabricators_of_create/porting_lib/**` — compile-only stand-ins for the
+  Porting Lib datagen API (`ModelFile`, `ModelBuilder`, `Block/ItemModelBuilder`, `Block/ItemModelProvider`,
+  `BlockStateProvider`, `ConfiguredModel`, `VariantBlockStateBuilder`, `MultiPartBlockStateBuilder`,
+  `ExistingFileHelper`, `ICondition`, `WithConditions`). Same package names as Porting Lib, so no call sites changed.
+  Every generator method throws `DatagenStubs.unsupported()`.
+- `simulated/build.gradle` adds that folder as a source dir (`sourceSets.main.java.srcDir('src/datagenStubs/java')`)
+  and no longer runs `unpackPortingLibCompat` (which bundled Porting Lib classes into the Simulated jar).
+- The Porting Lib `compileOnly` dependencies were removed from `gradle/fabric-module.gradle`.
+- `io.github.fabricators_of_create.porting_lib.util.DeferredHolder` is **not** a stub: it's vendored runtime code in
+  `simulated/src/main/java` and stays.
+- Real (non-stub) fixes made along the way, which the datagen port keeps:
+  Fabric datagen renames (`FabricDataOutput` → `FabricPackOutput`, `FabricTagProvider` → `FabricTagsProvider`,
+  `SimpleFabricLootTableProvider` → `SimpleFabricLootTableSubProvider`, `FabricBlockLootTableProvider` →
+  `FabricBlockLootSubProvider`), and Porting Lib `Tags.Items.RODS_WOODEN` → `ConventionalItemTags.WOODEN_RODS`.
+
+### Rules while stubbed
+- Don't run `runDatagen` (it fails fast with "Data generation is stubbed on the 26.1 branch").
+- New or changed content needs its JSON written by hand in `src/main/resources` (or edited in
+  `src/generated/resources`), and should still declare its datagen callbacks so the later port regenerates it.
+- If a stub method is missing when you add a datagen callback, add it to the stub with the NeoForge/Porting Lib
+  signature and a `throw DatagenStubs.unsupported()` body.
+- First launch will show which committed JSON no longer matches 26.1's formats (resource-load errors in the log).
+  Fix those by hand and list them below so the datagen port can confirm it regenerates them correctly.
+
+### JSON fixed by hand (to re-check after the datagen port)
+- `aeronautics/src/generated/resources/assets/aeronautics/models/block/levitite.json` and
+  `pearlescent_levitite.json`: texture `all` → `{ "sprite": ..., "force_translucent": true }` (26.1 has no block
+  render layer registration; these textures are opaque but must render translucent). The datagen port must emit this.
+
+### How to remove the stubs (the real datagen port)
+1. Replace the Porting Lib generators with a 26.1 implementation. Options, in order of preference:
+   a. A 26.1 Porting Lib release, if one appears (`mvn.devos.one`, `io.github.fabricators_of_create.Porting-Lib:models`).
+   b. Port NeoForge's `BlockStateProvider`/`ModelProvider` family (what Porting Lib wraps) to 26.1 into
+      `simulated/src/datagen` and point Registrate at it.
+   c. Rewrite Registrate's blockstate/model providers on vanilla 26.1 `ModelProvider`/`BlockModelGenerators`.
+      This changes the `.blockstate(...)` lambdas in `SimBlocks` and the other `index` classes.
+2. Delete `simulated/src/datagenStubs` and its `srcDir` line in `simulated/build.gradle`.
+3. Fix the remaining Fabric/vanilla datagen API changes in `com/tterrag/registrate/providers/**`.
+4. Run `./gradlew :simulated:runDatagen` (and the other modules' datagen) and diff `src/generated/resources`
+   against the committed 1.21.11 output, including the hand-fixed JSON listed above.
+
 ## Tips
 
+- **Static mixin audit** (session scratchpad, not in the repo): `check_mixin_targets.pl <repo> <javap> <classpath-file>`.
+  It checks target classes, `method`/`target` names and descriptors, `@Shadow` members (including method parameter
+  types) and `@Inject`/`@WrapMethod` handler parameters against the real 26.1 classes. Known false positives:
+  `zume`/`scalablelux`/`starlight` (optional mods), `CameraType.$VALUES`, wildcard-import targets
+  (`ServerChunkCacheMixin`, `FixAutoOrientationMixin`), and `is(Object)` (inherited from an interface).
 - Shared javac doesn't keep compiling past errors reliably (`--should-stop=ifError=GENERATE`
   crashes on this codebase), so fix modules in dependency order: Sable → Simulated → Offroad → Aeronautics.
 - Look up 26.1 names in the deobfuscated jar:
@@ -189,9 +381,24 @@ Decompiled 26.1.2 sources: run `./gradlew :sable:genSources`, then unzip
 - Found and fixed three runtime-only mixin mismatches (Particle `getLightCoords`, vanilla `prepareChunkRenders`,
   Sodium `setupTerrain`).
 - Started Simulated: applied the Sable patterns plus `Level.getRandom()` (622 → 514).
+- Committed checkpoint `85b0db0` ("Port build to 26.1.2 and get Sable compiling").
+- Stubbed datagen (Porting Lib generators) per decision; wrote the "Datagen stubs" section.
+- Ported Registrate runtime, GUI (`GuiGraphicsExtractor`), render pipelines, block-entity submit collector,
+  world presets, recipes and many small APIs in Simulated (514 → ~46). Remaining items are listed under Simulated.
+- Helper scripts used for position-based fixes live in the session scratchpad (not in the repo):
+  `fix_chunkpos.pl` (ChunkPos + `Level.random`), `fix_method_renames.pl` (rename a method only where javac
+  reports it missing on a given receiver type), `errs_for.pl` (print a file's javac errors with source lines).
+- Finished Simulated, Offroad and Aeronautics compiles; replaced Veil with vanilla `RenderPipeline`/`TextureTarget` code.
+- Fixed the runtime mixin mismatches (table under "Runtime mixin fixes") and bumped Fabric Loader to 0.20.1.
+  **Production server and client smoke both pass.** The client smoke now waits for the resource reload to finish.
 
 ## Decisions
 
+- **No saved-data migration from 1.21.11** (2026-10-22). Sable/Simulated/Aeronautics saved data moved to
+  `data/<modid>/<id>.dat` (26.1 `SavedDataType` ids are `Identifier`s). Only worlds that ran the mod on 1.21.11 are
+  affected; upgrading those worlds is not supported. New worlds are unaffected.
+- **Replace Veil with vanilla 26.1 rendering** (2026-10-22), keeping equal functionality. Veil has no 26.1 build, its
+  core is raw OpenGL that would itself need porting, and it was never shipped at runtime. See "Veil replacement".
 - **Sable stays in this repo.** It has always been a subproject here, the 4-in-1 jar
   bundles it, and the other modules depend on it directly. A separate repo would add
   publishing and version coordination for no gain. Revisit only if Sable needs to be

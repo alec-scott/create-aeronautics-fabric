@@ -1,5 +1,7 @@
 package dev.simulated_team.simulated.content.entities.honey_glue;
 
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.platform.InputConstants;
 import com.zurrtum.create.client.AllKeys;
 import com.zurrtum.create.client.foundation.utility.CreateLang;
 import com.zurrtum.create.client.foundation.utility.RaycastHelper;
@@ -144,7 +146,7 @@ public class HoneyGlueClientHandler implements InteractCallback {
 
         final InteractionHand hand = this.getHoneyGlueHand(player);
 
-        if (hand == null || !AllKeys.hasControlDown()) {
+        if (hand == null || !Minecraft.getInstance().hasControlDown()) {
             return Result.empty();
         } else if (this.currentState == State.UNBOUND && this.hoveredGlue != null) {
             this.hoveredGlue.updateClientBounds();
@@ -195,7 +197,7 @@ public class HoneyGlueClientHandler implements InteractCallback {
     }
 
     private void renderSelection(final BlockHitResult bhr, final int color) {
-        if ((altDown() || bhr.getType() != HitResult.Type.MISS) && !AllKeys.hasShiftDown() && this.currentState == State.UNBOUND) {
+        if ((altDown() || bhr.getType() != HitResult.Type.MISS) && !Minecraft.getInstance().hasShiftDown() && this.currentState == State.UNBOUND) {
             Outliner.getInstance().showAABB("HoneyGlue", new AABB(bhr.getBlockPos()))
                     .colored(color)
                     .withFaceTexture(SimSpecialTextures.HONEY_GLUE)
@@ -215,7 +217,7 @@ public class HoneyGlueClientHandler implements InteractCallback {
     }
 
     private static boolean altDown() {
-        return AllKeys.isKeyDown(GLFW.GLFW_KEY_LEFT_ALT) || AllKeys.isKeyDown(GLFW.GLFW_KEY_RIGHT_ALT);
+        return InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_LEFT_ALT) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_RIGHT_ALT);
     }
 
     public void updateHovered() {

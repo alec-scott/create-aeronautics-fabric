@@ -9,12 +9,13 @@ import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
 import com.mojang.blaze3d.resource.ResourceHandle;
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.simulated_team.simulated.content.blocks.lasers.LateLaserRenderQueue;
-import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LevelTargetBundle;
 import net.minecraft.client.renderer.RenderBuffers;
-import org.joml.Matrix4f;
+import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import org.joml.Matrix4fc;
 import org.joml.Vector4f;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -43,21 +44,20 @@ public abstract class LevelRendererMixin {
                     value = "INVOKE",
                     target = "Lnet/minecraft/client/renderer/LevelRenderer;addLateDebugPass(" +
                             "Lcom/mojang/blaze3d/framegraph/FrameGraphBuilder;" +
-                            "Lnet/minecraft/client/renderer/state/CameraRenderState;" +
+                            "Lnet/minecraft/client/renderer/state/level/CameraRenderState;" +
                             "Lcom/mojang/blaze3d/buffers/GpuBufferSlice;" +
-                            "Lorg/joml/Matrix4f;)V"
+                            "Lorg/joml/Matrix4fc;)V"
             )
     )
     private void simulated$addLaserAfterClouds(final GraphicsResourceAllocator allocator,
                                                 final DeltaTracker deltaTracker,
                                                 final boolean renderBlockOutline,
-                                                final Camera camera,
-                                                final Matrix4f frustumMatrix,
-                                                final Matrix4f projectionMatrix,
-                                                final Matrix4f modelViewMatrix,
+                                                final CameraRenderState cameraState,
+                                                final Matrix4fc modelViewMatrix,
                                                 final GpuBufferSlice fogBuffer,
                                                 final Vector4f fogColor,
                                                 final boolean renderSky,
+                                                final ChunkSectionsToRender chunkSectionsToRender,
                                                 final CallbackInfo ci,
                                                 @Local final FrameGraphBuilder frameGraphBuilder) {
         final FramePass laserPass = frameGraphBuilder.addPass("simulated_laser_after_clouds");

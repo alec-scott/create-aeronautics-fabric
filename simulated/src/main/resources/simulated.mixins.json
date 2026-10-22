@@ -49,7 +49,7 @@
     "silence_jei.ItemStackListFactoryMixin",
     "sounds.SoundEngineMixin",
     "sounds.SoundManagerMixin",
-    "throttle_lever.GameRendererMixin",
+    "throttle_lever.MinecraftMixin",
     "world_presets.CreateWorldScreenMixin",
     "world_presets.WorldTabMixin"
   ],
@@ -91,7 +91,8 @@
     "structure_template.StructureTemplateMixin",
     "torsion_spring.ComparatorBlockMixin",
     "torsion_spring.MechanicalBearingBlockEntityMixin",
-    "world_presets.PrimaryLevelDataMixin"
+    "world_presets.PrimaryLevelDataMixin",
+    "world_presets.ServerLevelMixin"
   ],
   "injectors": {
     "defaultRequire": 1

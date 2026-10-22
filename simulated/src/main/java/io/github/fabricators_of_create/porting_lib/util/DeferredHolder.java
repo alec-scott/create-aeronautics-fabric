@@ -1,5 +1,6 @@
 package io.github.fabricators_of_create.porting_lib.util;
 
+import net.minecraft.core.component.DataComponentMap;
 import com.mojang.datafixers.util.Either;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderOwner;
@@ -117,6 +118,19 @@ public class DeferredHolder<R, T extends R> implements Holder<R>, Supplier<T> {
     public boolean is(final Holder<R> other) {
         bind(false);
         return holder != null && holder.is(other);
+    }
+
+    // PORT-NOTE(mc26.1): Holder gained components() (data components bound to the holder).
+    @Override
+    public DataComponentMap components() {
+        bind(true);
+        return holder.components();
+    }
+
+    @Override
+    public boolean areComponentsBound() {
+        bind(false);
+        return holder != null && holder.areComponentsBound();
     }
 
     @Override

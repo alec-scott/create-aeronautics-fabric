@@ -1,5 +1,9 @@
 package dev.simulated_team.simulated.util;
 
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
 
@@ -104,5 +108,11 @@ public class SimColors {
                 Math.sqrt(Lab.y()*Lab.y() + Lab.z()*Lab.z()),
                 Math.atan2(Lab.y(), Lab.z())
         );
+    }
+
+    // PORT-NOTE(mc26.1): DyeItem.byColor is gone (dye colour is now the DYE data component); vanilla dyes are
+    // still registered as <color>_dye.
+    public static Item dyeItem(final DyeColor color) {
+        return BuiltInRegistries.ITEM.getValue(Identifier.withDefaultNamespace(color.getSerializedName() + "_dye"));
     }
 }

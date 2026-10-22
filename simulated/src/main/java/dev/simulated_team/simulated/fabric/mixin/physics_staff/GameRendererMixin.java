@@ -1,5 +1,6 @@
 package dev.simulated_team.simulated.fabric.mixin.physics_staff;
 
+import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.simulated_team.simulated.client.render.FirstPersonItemFocus;
 import dev.simulated_team.simulated.content.blocks.lasers.IrisLaserRenderQueue;
@@ -17,7 +18,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -27,11 +27,13 @@ public abstract class GameRendererMixin {
     @Final
     private Minecraft minecraft;
 
-    @ModifyArg(method = "renderLevel", index = 5, at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/Camera;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;Z)V"))
-    private Matrix4f simulated$captureWorldProjection(final Matrix4f projection) {
+    // PORT-NOTE(mc26.1): the projection matrix is no longer passed to LevelRenderer.renderLevel; capture the local instead.
+    private static final String RENDER_LEVEL = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/renderer/state/level/CameraRenderState;Lorg/joml/Matrix4fc;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;ZLnet/minecraft/client/renderer/chunk/ChunkSectionsToRender;)V";
+
+    @Inject(method = "renderLevel", at = @At(value = "INVOKE", target = RENDER_LEVEL))
+    private void simulated$captureWorldProjection(final DeltaTracker deltaTracker, final CallbackInfo ci,
+                                                  @Local(ordinal = 0) final Matrix4f projection) {
         FirstPersonItemFocus.captureWorldProjection(projection);
-        return projection;
     }
 
     @Inject(method = "shouldRenderBlockOutline", at = @At("HEAD"), cancellable = true)
@@ -46,7 +48,7 @@ public abstract class GameRendererMixin {
             method = "renderLevel",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/Camera;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;Z)V",
+                    target = RENDER_LEVEL,
                     shift = At.Shift.AFTER
             )
     )

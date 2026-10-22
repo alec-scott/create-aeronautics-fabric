@@ -12,23 +12,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Adds Levitite fluid tracking and bridges eye submersion to vanilla air handling. */
+/** Bridges eye submersion in Levitite Blend to vanilla air handling. */
+// PORT-NOTE(mc26.1): Levitite fluid tracking and current moved to LevititeBlendFluidBehavior (Fabric fluid API).
+
 @Mixin(Entity.class)
 public abstract class EntityMixin {
-    @Inject(method = "updateInWaterStateAndDoFluidPushing", at = @At("TAIL"), cancellable = true)
-    private void aeronautics$updateLevititeFluid(CallbackInfoReturnable<Boolean> cir) {
-        final Entity entity = (Entity) (Object) this;
-        // NeoForge's Levitite fluid type uses the same motion scale as vanilla's
-        // non-ultra-warm water path, but in the opposite direction (upward fluid).
-        final boolean inLevitite = entity.updateFluidHeightAndDoFluidPushing(
-                AeroTags.FluidTags.LEVITITE_BLEND, -0.0023333333333333335D);
-        if (inLevitite) {
-            // Keep callers of this vanilla hook informed that the entity is in
-            // a fluid (for fall-distance and other fluid interaction logic).
-            cir.setReturnValue(true);
-        }
-    }
-
     @Inject(method = "isEyeInFluid", at = @At("RETURN"), cancellable = true)
     private void aeronautics$eyeInLevitite(final TagKey<Fluid> fluidTag,
                                             final CallbackInfoReturnable<Boolean> cir) {

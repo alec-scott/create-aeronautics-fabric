@@ -25,6 +25,6 @@ public final class FabricSimItemService implements SimItemService {
 
     @Override
     public int getSuperheatedBurnTime(final ItemStack stack) {
-        return stack.getItemHolder().is(AllItemTags.BLAZE_BURNER_FUEL_SPECIAL) ? 3200 : 0;
+        return stack.typeHolder().is(AllItemTags.BLAZE_BURNER_FUEL_SPECIAL) ? 3200 : 0;
     }
 }

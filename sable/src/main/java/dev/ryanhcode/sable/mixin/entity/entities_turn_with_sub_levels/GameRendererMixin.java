@@ -34,8 +34,9 @@ public class GameRendererMixin {
     @Unique
     private UUID sable$lastSubLevel = null;
 
-    @Inject(method = "updateCamera", at = @At("HEAD"))
-    public void sable$updatePlayerRotation(final DeltaTracker deltaTracker, final CallbackInfo ci) {
+    // PORT-NOTE(mc26.1): GameRenderer.updateCamera became update(deltaTracker, advanceGameTime).
+    @Inject(method = "update", at = @At("HEAD"))
+    public void sable$updatePlayerRotation(final DeltaTracker deltaTracker, final boolean advanceGameTime, final CallbackInfo ci) {
         final LocalPlayer player = this.minecraft.player;
         if (player == null) {
             this.sable$lastSubLevel = null;

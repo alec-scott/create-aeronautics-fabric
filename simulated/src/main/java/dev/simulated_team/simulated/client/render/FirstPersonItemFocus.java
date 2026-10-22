@@ -6,6 +6,9 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.Projection;
+import net.minecraft.client.renderer.state.GameRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.entity.ItemOwner;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.phys.Vec3;
@@ -39,8 +42,7 @@ public final class FirstPersonItemFocus {
         final Camera camera = minecraft.gameRenderer.getMainCamera();
         camera.rotation().transformInverse(this.capturedPosition);
         // The hand pass has its own lens; the configured world FOV does not apply to it.
-        this.capturedProjection.set(minecraft.gameRenderer.getProjectionMatrix(
-                minecraft.gameRenderer.getFov(camera, partialTicks, false)));
+        this.capturedProjection.set(projection(false));
         this.cameraRelativeWorldSpace = false;
     }
 
@@ -83,7 +85,7 @@ public final class FirstPersonItemFocus {
         final Vector4f projectedPoint = new Vector4f(
                 (float) focusPoint.x, (float) focusPoint.y, (float) focusPoint.z, 1.0f);
         final Matrix4f actualProjection = hasWorldProjection ? WORLD_PROJECTION
-                : gameRenderer.getProjectionMatrix(gameRenderer.getFov(camera, partialTicks, true));
+                : projection(true);
         // Match the hand's clip-space position using the world projection, then return
         // to world orientation. Uniformly scaling by FOV cannot change screen position.
         this.capturedProjection.transform(projectedPoint);
@@ -126,5 +128,19 @@ public final class FirstPersonItemFocus {
         return minecraft.options.getCameraType().isFirstPerson()
                 && !camera.isDetached()
                 && camera.entity() == player;
+    }
+
+    // PORT-NOTE(mc26.1): GameRenderer.getFov/getProjectionMatrix are gone. The world projection is the camera's,
+    // published in CameraRenderState each frame; the hand pass uses its own perspective with the HUD FOV, as in
+    // GameRenderer's "hand" pass.
+    private static Matrix4f projection(final boolean useWorldFov) {
+        final GameRenderState state = Minecraft.getInstance().gameRenderer.getGameRenderState();
+        final CameraRenderState camera = state.levelRenderState.cameraRenderState;
+        if (useWorldFov) {
+            return new Matrix4f(camera.projectionMatrix);
+        }
+        final Projection projection = new Projection();
+        projection.setupPerspective(0.05F, 100.0F, camera.hudFov, state.windowRenderState.width, state.windowRenderState.height);
+        return projection.getMatrix(new Matrix4f());
     }
 }
