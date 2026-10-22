@@ -56,7 +56,7 @@ Optional-mod version rules (Sable's `fabric.mod.json` refuses to load otherwise)
 
 ### 0.4 Worlds
 
-- Use **new worlds only**. Upgrading 1.21.11 worlds is deliberately unsupported (see Decisions in PORTING-26.1.md).
+- Use **new worlds** for sections 1–12. Section 13 tests upgrading an old 1.21.11 world.
 - Most tests: Creative, cheats on, World Type **Airship Ready** (superflat at y=63, to give normal air pressure).
 - Section 9 uses World Type **End Sea**.
 - Handy: `/time set day`, and turn off the daylight cycle and mob spawning in the world's Game Rules screen.
@@ -347,6 +347,32 @@ sync problems that singleplayer hides.
 
 - [ ] **12.1** Server game tests pass (including the generated Ponder structure tests).
 - [ ] **12.2** Client game tests pass. These run with Sodium, Iris and EntityCulling on the classpath.
+
+---
+
+## 13. Upgrading a 1.21.11 world
+
+Old worlds upgrade automatically when opened (see PORTING-26.1.md, "World upgrades"). This is the real test of it,
+on a world you actually played.
+
+**Setup:** copy a 1.21.11 world that has ships, balloons and some Create machinery from your old instance's `saves`
+folder into this instance's `saves` folder. **Work on a copy**: the upgrade can't be undone. Before copying, note
+where a few ships are (F3 coordinates) and what's in one of their chests.
+
+- [ ] **13.1** Open it. Vanilla asks to upgrade/back up the world; accept. The progress screen finishes and the world
+  loads without a crash.
+- [ ] **13.2** Go to each ship you noted. It's there, in the same place and orientation, with its blocks, block
+  entities (chest contents, signs, Create kinetics) and contraptions intact.
+- [ ] **13.3** A ship in the Nether (and End, if you have one) is also there.
+- [ ] **13.4** Hot-air balloons still give lift (balloon data), levitite still crystallizes where it was mid-way
+  (crystallization data), and a physics-staff-locked ship is still locked.
+- [ ] **13.5** Create trains and tracks still work (Create Fly moves Create's own data).
+- [ ] **13.6** Save and quit, reopen: everything is still there, and there's no second upgrade prompt.
+- [ ] **13.7** In the world folder, there's no `sublevels` folder at the top level, and no `DIM-1`/`DIM1` folders
+  left over. If any remain, something wasn't moved: zip and send the world.
+
+Do **not** test with a world you already opened with an earlier 26.1 build of this port. Those were upgraded
+without the ship moves and won't upgrade again; use a fresh copy of the 1.21.11 world.
 
 ---
 

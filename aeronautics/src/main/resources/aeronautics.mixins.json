@@ -5,6 +5,7 @@
   "plugin": "dev.eriksonn.aeronautics.plugin.AeroMixinPlugin",
   "compatibilityLevel": "JAVA_18",
   "mixins": [
+    "world_upgrade.DimensionStorageFileFixMixin",
     "balloon.SimAssemblyHelperMixin",
     "balloon.SubLevelAssemblyHelperMixin",
     "create_sublevel.AirCurrentMixin",

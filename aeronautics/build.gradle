@@ -43,10 +43,12 @@ dependencies {
 def productionBundle = rootProject.tasks.named('build4In1Jar')
 def productionSmokeJvmArgs = [
         '-Daeronautics.productionSmokeTest=true',
-        // Warn when an optional injector (require = 0, expect = N) stops matching.
-        '-Dmixin.debug.countInjections=true',
         '-Xmx3G'
 ]
+// -Psmoke_commands_file=<file> runs each line as a server command once the server smoke test has started.
+if (project.findProperty('smoke_commands_file')) {
+    productionSmokeJvmArgs.add("-Daeronautics.smokeCommandsFile=${file(project.property('smoke_commands_file')).absolutePath}")
+}
 def requireProductionSmokeMarker = { task, String marker, List<String> allowedErrors = [] ->
     def logFile = task.runDir.file('logs/latest.log').get().asFile
     def crashReports = task.runDir.dir('crash-reports').get().asFile

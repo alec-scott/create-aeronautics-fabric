@@ -1,0 +1,18 @@
+# Run by the fabric-1.21.11 build (see PORTING-26.1.md, "World upgrades"). Builds ships in the
+# Overworld and the Nether, prints their positions, and saves.
+# Overworld ship, relative to world spawn
+forceload add ~ ~ ~3 ~3
+fill ~ ~20 ~ ~3 ~20 ~3 minecraft:oak_planks
+setblock ~1 ~21 ~1 minecraft:chest{Items:[{Slot:0b,id:"minecraft:diamond",count:5}]}
+setblock ~2 ~21 ~2 create:shaft
+setblock ~0 ~21 ~3 aeronautics:levitite
+sable assemble area ~ ~20 ~ ~3 ~21 ~3
+sable info @e
+# Nether ship
+execute in minecraft:the_nether run forceload add 0 0
+execute in minecraft:the_nether run fill 0 110 0 2 110 2 minecraft:stone
+execute in minecraft:the_nether run sable assemble area 0 110 0 2 110 2
+execute in minecraft:the_nether run sable info @e
+sable storage find_all_sub_levels
+execute in minecraft:the_nether run sable storage find_all_sub_levels
+save-all flush

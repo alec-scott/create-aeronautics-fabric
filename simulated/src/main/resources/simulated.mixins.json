@@ -54,6 +54,7 @@
     "world_presets.WorldTabMixin"
   ],
   "mixins": [
+    "world_upgrade.DimensionStorageFileFixMixin",
     "aabb.AABBMixin",
     "accessor.BlockBehaviourAccessor",
     "accessor.ContraptionAccessor",

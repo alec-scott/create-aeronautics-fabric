@@ -266,6 +266,53 @@ Non-mixin runtime fixes:
 - `LegacyItemTooltips`: item components aren't bound at client init, so `getDefaultInstance().getRarity()` threw
   "Components not bound yet". Both tooltip palettes are now built up front and chosen at tooltip time.
 
+## World upgrades (1.21.11 → 26.1.2)
+
+Opening a 1.21.11 world upgrades it automatically, ships included. Singleplayer shows vanilla's usual
+"upgrade this world / make a backup" prompt and progress screen; a dedicated server just does it at startup.
+
+**What 26.1 changes.** Vanilla's `DimensionStorageFileFix` (a one-off, copy-on-write "file fix" run when a pre-26.1
+world is opened) moves each dimension from the world root / `DIM-1` / `DIM1` to `dimensions/minecraft/<name>/`, and
+saved data from `data/<id>.dat` to `data/<namespace>/<id>.dat`, **but only vanilla's own files**. Everything else
+is left behind where 26.1 never reads it, and the now-empty-except-for-mod-files `DIM-1`/`DIM1` folders stay.
+Without help, every ship and all mod saved data would silently vanish.
+
+**What we do.** Each module has a `world_upgrade/DimensionStorageFileFixMixin` that adds its moves to that same
+fix (the shared helpers are in `sable/.../util/LegacyWorldFileFixes`), so they run inside vanilla's transaction:
+all or nothing, never overwriting, skipping files that don't exist. Create Fly does the same for Create's files.
+
+| Mod | Moved |
+|---|---|
+| Sable | `sublevels/` (the ships themselves), `sable_sub_level_occupancy`, `sable_sub_level_force_load_tickets`, `sable_tracking_points` |
+| Simulated | `simulated_lodestone_tracker`, `simulated_physics_staff_lock_data` |
+| Aeronautics | `aeronautics_levitite_data`, `aeronautics_unloaded_balloons` |
+
+All are per-dimension, including modded dimensions (`dimensions/<ns>/<path>/data/<id>.dat` → `.../data/<modid>/<id>.dat`).
+
+**Why file moves are enough.** Our saved-data and ship-storage formats are unchanged since 1.21.11 (only the
+`SavedDataType` ids became `Identifier`s), and no vanilla data fix between 1.21.11 (data version ~4671) and 26.1.2
+touches blocks, items or block entities (only villager data, day time, stonecutter recipe names and `level.dat`).
+Sable stores ship blocks without a data version and never runs data fixers on them, so that matters: if a future
+Minecraft version adds block/item fixes, ship contents will need fixing too.
+
+**Tested** (2026-10-22): the `fabric-1.21.11` release built ships in the Overworld (chest with items, Create shaft,
+levitite) and the Nether, then 26.1.2 upgraded that world. Both ships load at their saved positions and the
+Overworld one carries on simulating; all files land in the new layout; no errors. To repeat it:
+1. `git worktree add --detach <dir> fabric-1.21.11` (`-c core.longpaths=true` on Windows), and in that tree make
+   the server smoke run `testing/world-upgrade/build-1.21.11-world.txt` (it has no smoke-commands support; add the
+   same few lines as `AeronauticsFabric.runSmokeCommands`, without `wait`). Run `:aeronautics:runProductionServerSmoke`.
+2. Copy its `aeronautics/build/production-smoke/server/world` to this repo's `aeronautics/build/production-smoke/server/world`.
+3. Set the Overworld position in `testing/world-upgrade/check-upgraded-world.txt` from step 1's log, then
+   `./gradlew :aeronautics:runProductionServerSmoke -Psmoke_commands_file=testing/world-upgrade/check-upgraded-world.txt`
+   and look for "Found 1 sub-levels" twice in the log.
+
+**Caveats.**
+- **Worlds already opened with a 26.1 build from before this fix** were upgraded without our moves. The level is now
+  marked as 26.1, so the upgrade won't run again: restore the backup vanilla offered (or your own) and reopen it.
+- Ships saved immediately after assembly (never ticked) have their bounds stored as `0,0,0` and only load once the
+  chunks around the world origin are loaded. That's existing Sable behaviour, not an upgrade issue; ships from a
+  played world have real bounds. The test script force-loads the origin for this reason.
+
 ## Next steps
 
 1. ~~Fix Sable~~ ✅
@@ -365,6 +412,8 @@ probably crashed if reached. What each use became:
 
 ## Tips
 
+- **Smoke commands:** `-Psmoke_commands_file=<file>` runs each line as a server command once the server smoke test
+  has started; a `wait <ticks>` line lets the server tick first. Used by the world-upgrade test.
 - **Smoke with optional mods:** add `-Psmoke_with_compat_mods=true` to either production smoke task to also load
   Sodium, Iris, ScalableLux and JEI, so the mixin audit covers Sable's/Aeronautics' compat mixins. Override a version
   with e.g. `"-Pscalablelux_version=0.3.0-alpha.0.2+26.1.2"`.
@@ -419,9 +468,8 @@ probably crashed if reached. What each use became:
 
 ## Decisions
 
-- **No saved-data migration from 1.21.11** (2026-10-22). Sable/Simulated/Aeronautics saved data moved to
-  `data/<modid>/<id>.dat` (26.1 `SavedDataType` ids are `Identifier`s). Only worlds that ran the mod on 1.21.11 are
-  affected; upgrading those worlds is not supported. New worlds are unaffected.
+- **Upgrade 1.21.11 worlds automatically** (2026-10-22; reverses the earlier "no migration" decision). Our moves
+  hook into vanilla's own world-upgrade file fix. See "World upgrades".
 - **Replace Veil with vanilla 26.1 rendering** (2026-10-22), keeping equal functionality. Veil has no 26.1 build, its
   core is raw OpenGL that would itself need porting, and it was never shipped at runtime. See "Veil replacement".
 - **Sable stays in this repo.** It has always been a subproject here, the 4-in-1 jar

@@ -1,0 +1,10 @@
+# Run by the 26.1 server smoke test on an upgraded copy of the world from build-1.21.11-world.txt.
+# Update the first forceload to the Overworld ship position that build printed.
+# Area around the 1.21.11 Overworld ship, as a nearby player would load it
+forceload add -540 -155 -480 -95
+# The test ships were saved straight after assembly, before Sable computed their bounds (stored as 0,0,0),
+# so Sable also waits on the chunks around the origin. Ships from a played world have real bounds.
+forceload add -16 -16 15 15
+wait 100
+sable info @e
+execute in minecraft:the_nether run sable info @e

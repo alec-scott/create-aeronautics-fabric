@@ -62,6 +62,7 @@
         "world_border.ClientLevelMixin"
     ],
     "mixins": [
+        "world_upgrade.DimensionStorageFileFixMixin",
         "assembly.AbstractFurnaceBlockEntityMixin",
         "block_decal_render.ServerLevelMixin",
         "block_placement.BlockPlaceContextMixin",
