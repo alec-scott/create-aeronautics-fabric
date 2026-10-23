@@ -49,9 +49,8 @@ public class HeatedCulledRenderRegion implements NativeResource {
         return this.origin;
     }
 
-    public void render(final PoseStack.Pose pose, final VertexConsumer sides, final VertexConsumer caps,
-                       final float scroll, final int frame, final float alpha) {
-        this.builder.renderOverlay(pose, sides, caps, scroll, frame, 0.0f, alpha);
+    public void render(final PoseStack.Pose pose, final VertexConsumer sides, final float scroll, final float alpha) {
+        this.builder.renderOverlay(pose, sides, scroll, 0.0f, alpha);
     }
 
     @Override
