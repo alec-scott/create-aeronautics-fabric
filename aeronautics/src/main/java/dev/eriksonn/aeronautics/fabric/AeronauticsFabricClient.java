@@ -1,8 +1,10 @@
 package dev.eriksonn.aeronautics.fabric;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.zurrtum.create.client.catnip.placement.PlacementClient;
 import dev.eriksonn.aeronautics.Aeronautics;
 import dev.eriksonn.aeronautics.AeronauticsClient;
+import dev.eriksonn.aeronautics.content.blocks.hot_air.balloon.effect.ClientBalloonEffectRenderer;
 import dev.eriksonn.aeronautics.content.blocks.hot_air.hot_air_burner.IrisBurnerFlameRenderQueue;
 import dev.eriksonn.aeronautics.events.AeronauticsClientEvents;
 import foundry.veil.api.network.VeilPacketManager;
@@ -10,6 +12,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderingRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.FluidModel;
 import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.resources.Identifier;
@@ -45,6 +48,8 @@ public final class AeronauticsFabricClient implements ClientModInitializer {
         LevelRenderEvents.END_MAIN.register(
                 context -> IrisBurnerFlameRenderQueue.finishWorldFrameCollection()
         );
+        LevelRenderEvents.END_MAIN.register(context -> ClientBalloonEffectRenderer.render(
+                new PoseStack(), Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false)));
         ClientTickEvents.START_CLIENT_TICK.register(client -> AeronauticsClientEvents.clientLevelTick(false));
         ClientTickEvents.END_CLIENT_TICK.register(client -> AeronauticsClientEvents.clientLevelTick(true));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

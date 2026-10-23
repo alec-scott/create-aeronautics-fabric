@@ -1,54 +1,93 @@
 package dev.eriksonn.aeronautics.content.blocks.hot_air.balloon.effect;
 
-import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
 import dev.eriksonn.aeronautics.Aeronautics;
-import dev.eriksonn.aeronautics.content.blocks.hot_air.BlockEntityLiftingGasProvider;
 import dev.eriksonn.aeronautics.content.blocks.hot_air.balloon.Balloon;
-import dev.eriksonn.aeronautics.content.blocks.hot_air.balloon.map.BalloonMap;
 import dev.eriksonn.aeronautics.content.blocks.hot_air.balloon.ClientBalloon;
-import foundry.veil.api.client.render.VeilRenderSystem;
-import foundry.veil.api.client.render.framebuffer.AdvancedFbo;
-import foundry.veil.api.client.render.post.PostPipeline;
-import foundry.veil.api.client.render.post.PostProcessingManager;
-import foundry.veil.api.client.render.shader.program.ShaderProgram;
-import foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess;
-import foundry.veil.api.event.VeilRenderLevelStageEvent;
+import dev.eriksonn.aeronautics.content.blocks.hot_air.balloon.map.BalloonMap;
+import dev.ryanhcode.sable.Sable;
+import dev.ryanhcode.sable.companion.math.Pose3dc;
+import dev.ryanhcode.sable.sublevel.ClientSubLevel;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.Mth;
-import org.jetbrains.annotations.Nullable;
-import org.joml.Matrix4f;
-import org.joml.Matrix4fc;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL30;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
 
+/**
+ * Draws the heat shimmer inside filled hot-air balloons: the heat overlay scrolling up the envelope's inner walls and
+ * the animated lava strip across its ceiling, fading out at the bottom of the balloon.
+ *
+ * <p>PORT-NOTE(mc26.1): upstream used Veil (a {@code hot_air_overlay} shader into a framebuffer, then a
+ * {@code soft_light} post blend), which has no 26.1 build; on Fabric 1.21.11 it was stubbed out. This draws the same
+ * geometry with vanilla translucent emissive render types at the end of the main level pass. The soft-light blend
+ * becomes plain alpha blending.</p>
+ */
 public class ClientBalloonEffectRenderer {
-
-    private static final Identifier FBO_ID = Aeronautics.path("soft_light");
-    private static final Identifier POST_SHADER_ID = Aeronautics.path("soft_light");
 
     private static final Identifier SIDE_TEXTURE = Aeronautics.path("textures/special/heat_overlay.png");
     private static final Identifier TOP_TEXTURE = Aeronautics.path("textures/special/lava_still.png");
 
-    private static final Identifier SHADER_ID = Aeronautics.path("hot_air_overlay");
+    private static final RenderType SIDES = RenderTypes.entityTranslucentEmissive(SIDE_TEXTURE, false);
+    private static final RenderType CAPS = RenderTypes.entityTranslucentEmissive(TOP_TEXTURE, false);
 
-    @Nullable
-    private static AdvancedFbo overlayFbo;
+    /** Side texture heights scrolled per tick. */
+    private static final float SCROLL_SPEED = 1.0f / 40.0f;
+    /** Ticks per frame of the lava strip (vanilla lava uses 2). */
+    private static final int TICKS_PER_FRAME = 2;
+    private static final float SIDE_ALPHA = 0.55f;
 
-    public static void onRenderLevelStage(final VeilRenderLevelStageEvent.Stage stage,
-                                          final Matrix4fc frustumMatrix,
-                                          final Matrix4fc projectionMatrix,
-                                          final int renderTick) {
-        freeFbo();
-    }
+    private static final Quaternionf ORIENTATION = new Quaternionf();
 
-    private static void freeFbo() {
-        if (overlayFbo != null) {
-            overlayFbo.free();
+    public static void render(final PoseStack poseStack, final float partialTick) {
+        final Minecraft mc = Minecraft.getInstance();
+        final ClientLevel level = mc.level;
+        if (level == null) return;
+
+        final BalloonMap map = BalloonMap.MAP.get(level);
+        if (map == null || map.isEmpty()) return;
+
+        final Camera camera = mc.gameRenderer.getMainCamera();
+        final Vec3 cam = camera.position();
+        final float time = level.getGameTime() + partialTick;
+        final float scroll = time * SCROLL_SPEED;
+        final int frame = (int) (time / TICKS_PER_FRAME);
+
+        final MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+        boolean drew = false;
+
+        for (final Balloon balloon : map.getBalloons()) {
+            if (!(balloon instanceof final ClientBalloon clientBalloon) || !clientBalloon.isValid()) continue;
+            final HeatedCulledRenderRegion region = clientBalloon.getRenderRegion();
+            if (region == null) continue;
+
+            final BlockPos origin = region.origin();
+            poseStack.pushPose();
+            final ClientSubLevel subLevel = Sable.HELPER.getContainingClient(origin);
+            if (subLevel != null) {
+                // the balloon is on a ship: its blocks are at plot coordinates, so place it with the ship's render pose
+                final Pose3dc pose = subLevel.renderPose();
+                final Vec3 physical = pose.transformPosition(Vec3.atLowerCornerOf(origin));
+                poseStack.translate(physical.x - cam.x, physical.y - cam.y, physical.z - cam.z);
+                poseStack.mulPose(ORIENTATION.set(pose.orientation()));
+                poseStack.scale((float) pose.scale().x(), (float) pose.scale().y(), (float) pose.scale().z());
+            } else {
+                poseStack.translate(origin.getX() - cam.x, origin.getY() - cam.y, origin.getZ() - cam.z);
+            }
+
+            region.render(poseStack.last(), buffers.getBuffer(SIDES), buffers.getBuffer(CAPS), scroll, frame, SIDE_ALPHA);
+            poseStack.popPose();
+            drew = true;
         }
 
-        overlayFbo = null;
+        if (drew) {
+            buffers.endBatch(SIDES);
+            buffers.endBatch(CAPS);
+        }
     }
 }

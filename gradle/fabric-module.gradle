@@ -21,8 +21,6 @@ sourceSets {
             exclude 'dev/eriksonn/aeronautics/mixin/render/sodium/DefaultMaterialsMixin.java'
             exclude 'dev/eriksonn/aeronautics/mixin/render/sodium/SodiumWorldRendererMixin.java'
             exclude 'dev/eriksonn/aeronautics/mixin/render/iris/WorldRenderingPhaseMixin.java'
-            // PORT-NOTE(mc26.1): unused Veil-based effect; Veil was removed (see PORTING-26.1.md, Veil replacement).
-            exclude 'dev/eriksonn/aeronautics/content/blocks/hot_air/balloon/effect/ClientBalloonEffectRenderer.java'
         }
         resources {
             srcDir 'src/generated/resources'
