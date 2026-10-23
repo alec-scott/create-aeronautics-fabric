@@ -5,6 +5,8 @@ import dev.ryanhcode.sable.companion.math.Pose3dc;
 import dev.ryanhcode.sable.sublevel.SubLevel;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import dev.ryanhcode.sable.companion.math.BoundingBox3ic;
+import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.core.BlockPos;
@@ -64,9 +66,20 @@ public final class SubLevelDynamicLights {
             }
         }
 
-        final LongOpenHashSet positionsToCheck = new LongOpenHashSet(nextState.lights.keySet());
+        // Only sources that appeared, vanished or changed level need relighting; rechecking
+        // unchanged ones every tick made the light engine re-propagate them constantly.
+        final LongOpenHashSet positionsToCheck = new LongOpenHashSet();
+        for (final Long2IntMap.Entry entry : nextState.lights.long2IntEntrySet()) {
+            if (previousState == null || previousState.lights.get(entry.getLongKey()) != entry.getIntValue()) {
+                positionsToCheck.add(entry.getLongKey());
+            }
+        }
         if (previousState != null) {
-            positionsToCheck.addAll(previousState.lights.keySet());
+            for (final long packedPos : previousState.lights.keySet()) {
+                if (!nextState.lights.containsKey(packedPos)) {
+                    positionsToCheck.add(packedPos);
+                }
+            }
         }
 
         for (final Long2ObjectMap.Entry<BlockState> entry : nextState.blocks.long2ObjectEntrySet()) {
@@ -181,6 +194,7 @@ public final class SubLevelDynamicLights {
                 continue;
             }
 
+            final BoundingBox3ic plotBounds = subLevel.getPlot().getBoundingBox();
             final Vector3d physicalCenter = new Vector3d();
             final BlockPos.MutableBlockPos physicalPos = new BlockPos.MutableBlockPos();
             final BlockPos.MutableBlockPos localPos = new BlockPos.MutableBlockPos();
@@ -206,9 +220,16 @@ public final class SubLevelDynamicLights {
 
                 final int radius = Math.min(15, source.emission);
                 final int radiusSquared = radius * radius;
-                for (int x = -radius; x <= radius; x++) {
-                    for (int y = -radius; y <= radius; y++) {
-                        for (int z = -radius; z <= radius; z++) {
+                // Positions outside the plot bounds hold no sub-level blocks, so skip them.
+                final int minX = Math.max(-radius, plotBounds.minX() - source.pos.getX());
+                final int maxX = Math.min(radius, plotBounds.maxX() - source.pos.getX());
+                final int minY = Math.max(-radius, plotBounds.minY() - source.pos.getY());
+                final int maxY = Math.min(radius, plotBounds.maxY() - source.pos.getY());
+                final int minZ = Math.max(-radius, plotBounds.minZ() - source.pos.getZ());
+                final int maxZ = Math.min(radius, plotBounds.maxZ() - source.pos.getZ());
+                for (int x = minX; x <= maxX; x++) {
+                    for (int y = minY; y <= maxY; y++) {
+                        for (int z = minZ; z <= maxZ; z++) {
                             if (x * x + y * y + z * z > radiusSquared) {
                                 continue;
                             }

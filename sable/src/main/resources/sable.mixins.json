@@ -23,6 +23,7 @@
         "entity.entities_stick_sublevels.player.RemotePlayerMixin",
         "entity.entities_turn_with_sub_levels.GameRendererMixin",
         "entity.entity_rendering.EntityRendererMixin",
+        "entity.entity_rendering.LevelRendererMixin",
         "entity.entity_rotations_and_riding.ClientPacketListenerMixin",
         "entity.entity_rotations_and_riding.EntityRenderDispatcherMixin",
         "entity.entity_rotations_and_riding.LocalPlayerMixin",
@@ -59,7 +60,8 @@
         "sublevel_sounds.ClientLevelMixin",
         "sublevel_sounds.SoundEngineMixin",
         "toast.IntegratedServerMixin",
-        "world_border.ClientLevelMixin"
+        "world_border.ClientLevelMixin",
+        "compatibility.entity_model_features.EMFLODHandlerMixin"
     ],
     "mixins": [
         "world_upgrade.DimensionStorageFileFixMixin",

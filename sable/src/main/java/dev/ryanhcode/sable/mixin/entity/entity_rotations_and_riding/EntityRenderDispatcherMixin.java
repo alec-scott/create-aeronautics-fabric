@@ -3,6 +3,7 @@ package dev.ryanhcode.sable.mixin.entity.entity_rotations_and_riding;
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.api.entity.EntitySubLevelUtil;
+import dev.ryanhcode.sable.companion.math.Pose3dc;
 import dev.ryanhcode.sable.mixinhelpers.camera.camera_rotation.EntitySubLevelRotationHelper;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -43,7 +44,24 @@ public class EntityRenderDispatcherMixin {
     private <E extends Entity> void sable$captureEntity(final E entity, final float partialTick, final CallbackInfoReturnable<EntityRenderState> cir) {
         final EntityRenderState renderState = cir.getReturnValue();
         this.sable$adjustLeashes(entity, renderState);
-        this.sable$renderData.put(renderState, new SableRenderData(entity, partialTick));
+
+        Quaternionf retainedOrientation = null;
+        if (!EntitySubLevelUtil.shouldKick(entity)) {
+            final ClientSubLevel subLevel = Sable.HELPER.getContainingClient(entity);
+            if (subLevel != null) {
+                // Retained entities (contraptions, seats, displays...) stay at plot coordinates. Place them
+                // with the sub-level's render pose here, before LevelRenderer subtracts the camera, so the
+                // float pose translation stays small and precise.
+                final Pose3dc renderPose = subLevel.renderPose(partialTick);
+                final Vec3 globalPos = renderPose.transformPosition(new Vec3(renderState.x, renderState.y, renderState.z));
+                renderState.x = globalPos.x;
+                renderState.y = globalPos.y;
+                renderState.z = globalPos.z;
+                retainedOrientation = new Quaternionf(renderPose.orientation());
+            }
+        }
+
+        this.sable$renderData.put(renderState, new SableRenderData(entity, partialTick, retainedOrientation));
     }
 
     @Inject(method = "submit", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;translate(DDD)V", shift = At.Shift.AFTER, ordinal = 0))
@@ -54,6 +72,13 @@ public class EntityRenderDispatcherMixin {
         }
 
         final Entity entity = renderData.entity();
+        if (renderData.retainedOrientation() != null) {
+            poseStack.pushPose();
+            poseStack.mulPose(renderData.retainedOrientation());
+            this.sable$rotated = true;
+            return;
+        }
+
         if (!EntitySubLevelUtil.shouldKick(entity)) {
             return;
         }
@@ -84,8 +109,10 @@ public class EntityRenderDispatcherMixin {
     @Inject(method = "submit", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;popPose()V", shift = At.Shift.BEFORE))
     private <S extends EntityRenderState> void sable$popPose(final S renderState, final CameraRenderState cameraRenderState, final double x, final double y, final double z, final PoseStack poseStack, final SubmitNodeCollector submitNodeCollector, final CallbackInfo ci) {
         if (this.sable$rotated) {
-            cameraRenderState.orientation = this.sable$cameraOrientation;
-            this.sable$cameraOrientation = null;
+            if (this.sable$cameraOrientation != null) {
+                cameraRenderState.orientation = this.sable$cameraOrientation;
+                this.sable$cameraOrientation = null;
+            }
             poseStack.popPose();
             this.sable$rotated = false;
         }
@@ -112,6 +139,6 @@ public class EntityRenderDispatcherMixin {
     }
 
     @Unique
-    private record SableRenderData(Entity entity, float partialTick) {
+    private record SableRenderData(Entity entity, float partialTick, Quaternionf retainedOrientation) {
     }
 }

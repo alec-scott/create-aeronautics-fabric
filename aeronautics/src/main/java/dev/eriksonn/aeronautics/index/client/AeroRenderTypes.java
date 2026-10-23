@@ -1,5 +1,6 @@
 package dev.eriksonn.aeronautics.index.client;
 
+import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -48,6 +49,8 @@ public final class AeroRenderTypes {
                 .withUniform("Projection", UniformType.UNIFORM_BUFFER)
                 .withUniform("Fog", UniformType.UNIFORM_BUFFER)
                 .withSampler("Sampler0")
+                // PORT-NOTE(mc26.1): pipelines no longer depth test by default; without this the flame shows through blocks.
+                .withDepthStencilState(DepthStencilState.DEFAULT)
                 .withCull(false)
                 .withVertexFormat(
                         DefaultVertexFormat.POSITION_TEX_COLOR,

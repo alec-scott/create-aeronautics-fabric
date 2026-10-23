@@ -100,7 +100,7 @@ public class ServerLevelPlot extends LevelPlot {
         final Level level = subLevel.getLevel();
         final LevelLightEngine parentLightEngine = level.getLightEngine();
         final ChunkSource chunkSource = level.getChunkSource();
-        this.lightEngine = new LevelLightEngine(
+        this.lightEngine = LightEngineCompat.createLightEngine(
                 chunkSource,
                 LightEngineCompat.hasBlockLight(parentLightEngine),
                 LightEngineCompat.hasSkyLight(parentLightEngine)

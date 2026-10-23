@@ -1,6 +1,7 @@
 package dev.ryanhcode.sable.sublevel.render;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import dev.ryanhcode.sable.companion.math.BoundingBox3dc;
 import dev.ryanhcode.sable.render.SubLevelDynamicLights;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
@@ -10,8 +11,10 @@ import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.LightLayer;
 
+import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.Map;
 
@@ -37,6 +40,15 @@ public final class SubLevelLightVertexConsumerProvider implements MultiBufferSou
     private final MultiBufferSource delegate;
     private final Map<VertexConsumer, SubLevelLightVertexConsumer> consumers = new IdentityHashMap<>();
     private final Long2IntOpenHashMap lightCache = new Long2IntOpenHashMap();
+
+    // Dense per-frame light cache over the sub-level's swept world bounds. Every vertex samples
+    // eight cells, so hash lookups dominated replaying large sub-levels.
+    private static final int GRID_MARGIN = 2;
+    private static final int MAX_GRID_CELLS = 1 << 22;
+    private static int[] gridScratch = new int[0];
+    private final int[] grid;
+    private final int gridMinX, gridMinY, gridMinZ;
+    private final int gridSizeX, gridSizeY, gridSizeZ;
     private final BlockPos.MutableBlockPos lightPos = new BlockPos.MutableBlockPos();
 
     public SubLevelLightVertexConsumerProvider(
@@ -57,6 +69,25 @@ public final class SubLevelLightVertexConsumerProvider implements MultiBufferSou
         );
         this.delegate = delegate;
         this.lightCache.defaultReturnValue(-1);
+
+        final BoundingBox3dc bounds = subLevel.boundingBox();
+        this.gridMinX = Mth.floor(bounds.minX()) - GRID_MARGIN;
+        this.gridMinY = Mth.floor(bounds.minY()) - GRID_MARGIN;
+        this.gridMinZ = Mth.floor(bounds.minZ()) - GRID_MARGIN;
+        this.gridSizeX = Mth.floor(bounds.maxX()) + GRID_MARGIN - this.gridMinX + 1;
+        this.gridSizeY = Mth.floor(bounds.maxY()) + GRID_MARGIN - this.gridMinY + 1;
+        this.gridSizeZ = Mth.floor(bounds.maxZ()) + GRID_MARGIN - this.gridMinZ + 1;
+        final long cells = (long) this.gridSizeX * this.gridSizeY * this.gridSizeZ;
+        if (cells > 0 && cells <= MAX_GRID_CELLS) {
+            // Only used on the render thread, one provider at a time, so the scratch array is reused.
+            if (gridScratch.length < cells) {
+                gridScratch = new int[(int) cells];
+            }
+            this.grid = gridScratch;
+            Arrays.fill(this.grid, 0, (int) cells, -1);
+        } else {
+            this.grid = null;
+        }
     }
 
     /**
@@ -65,11 +96,36 @@ public final class SubLevelLightVertexConsumerProvider implements MultiBufferSou
      */
     // PORT-NOTE(mc26.1): replaces Fabric's BlockVertexConsumerProvider and RenderLayerHelper.movingDelegate, both removed.
     public VertexConsumer getBuffer(final ChunkSectionLayer layer) {
-        return this.getBuffer(switch (layer) {
+        return this.getBuffer(movingBlockType(layer));
+    }
+
+    /**
+     * The underlying buffer for {@code layer}, for callers that apply {@link #combineLight} themselves.
+     */
+    public VertexConsumer getUnlitBuffer(final ChunkSectionLayer layer) {
+        return this.delegate.getBuffer(movingBlockType(layer));
+    }
+
+    /**
+     * Samples parent-world light at a camera-relative position, packed as block | sky << 16.
+     */
+    public int samplePhysicalLightAt(final float x, final float y, final float z) {
+        return this.samplePhysicalLight(x + this.cameraX, y + this.cameraY, z + this.cameraZ);
+    }
+
+    /**
+     * Combines a vertex's own plot light with sampled parent-world light, as {@link SubLevelLightVertexConsumer} does.
+     */
+    public static int combineLight(final int blockLight, final int skyLight, final int physicalLight) {
+        return Math.max(blockLight, physicalLight & 0xffff) | Math.min(skyLight, physicalLight >>> 16 & 0xffff) << 16;
+    }
+
+    private static RenderType movingBlockType(final ChunkSectionLayer layer) {
+        return switch (layer) {
             case SOLID -> RenderTypes.solidMovingBlock();
             case CUTOUT -> RenderTypes.cutoutMovingBlock();
             case TRANSLUCENT -> RenderTypes.translucentMovingBlock();
-        });
+        };
     }
 
     @Override
@@ -123,12 +179,33 @@ public final class SubLevelLightVertexConsumerProvider implements MultiBufferSou
     }
 
     private int getCellLight(final int x, final int y, final int z) {
+        if (this.grid != null) {
+            final int gx = x - this.gridMinX;
+            final int gy = y - this.gridMinY;
+            final int gz = z - this.gridMinZ;
+            if (gx >= 0 && gy >= 0 && gz >= 0 && gx < this.gridSizeX && gy < this.gridSizeY && gz < this.gridSizeZ) {
+                final int index = (gy * this.gridSizeZ + gz) * this.gridSizeX + gx;
+                int packedLight = this.grid[index];
+                if (packedLight < 0) {
+                    packedLight = this.computeCellLight(x, y, z, BlockPos.asLong(x, y, z));
+                    this.grid[index] = packedLight;
+                }
+                return packedLight;
+            }
+        }
+
         final long packedPos = BlockPos.asLong(x, y, z);
         int packedLight = this.lightCache.get(packedPos);
         if (packedLight >= 0) {
             return packedLight;
         }
 
+        packedLight = this.computeCellLight(x, y, z, packedPos);
+        this.lightCache.put(packedPos, packedLight);
+        return packedLight;
+    }
+
+    private int computeCellLight(final int x, final int y, final int z, final long packedPos) {
         this.lightPos.set(x, y, z);
         int blockLight = this.level.getBrightness(LightLayer.BLOCK, this.lightPos);
         if (blockLight <= this.ownLightMask.upperBound(packedPos)) {
@@ -137,10 +214,8 @@ public final class SubLevelLightVertexConsumerProvider implements MultiBufferSou
             // override it as the moving structure crosses block boundaries.
             blockLight = 0;
         }
-        packedLight = blockLight
+        return blockLight
                 | this.level.getBrightness(LightLayer.SKY, this.lightPos) << 4;
-        this.lightCache.put(packedPos, packedLight);
-        return packedLight;
     }
 
     private static int floor(final double value) {
@@ -231,10 +306,8 @@ public final class SubLevelLightVertexConsumerProvider implements MultiBufferSou
                     this.worldY,
                     this.worldZ
             );
-            this.delegate.setUv2(
-                    Math.max(blockLight, physicalLight & 0xffff),
-                    Math.min(skyLight, physicalLight >>> 16 & 0xffff)
-            );
+            final int light = combineLight(blockLight, skyLight, physicalLight);
+            this.delegate.setUv2(light & 0xffff, light >>> 16);
             return this;
         }
 

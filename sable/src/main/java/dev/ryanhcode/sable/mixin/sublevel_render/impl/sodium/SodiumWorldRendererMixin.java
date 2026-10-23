@@ -8,13 +8,17 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.ryanhcode.sable.api.client.SubLevelBlockEntityRenderRegistry;
 import dev.ryanhcode.sable.api.sublevel.ClientSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
+import dev.ryanhcode.sable.companion.math.BoundingBox3ic;
 import dev.ryanhcode.sable.companion.math.Pose3dc;
 import dev.ryanhcode.sable.mixinterface.sublevel_render.SubLevelBlockEntityRenderExtension;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import dev.ryanhcode.sable.sublevel.plot.LevelPlot;
+import dev.ryanhcode.sable.sublevel.plot.PlotChunkHolder;
+import dev.ryanhcode.sable.sublevel.render.SubLevelImmediateMesh;
 import dev.ryanhcode.sable.sublevel.render.SubLevelRenderData;
 import dev.ryanhcode.sable.sublevel.render.SubLevelLightVertexConsumerProvider;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import net.caffeinemc.mods.sodium.client.render.SodiumWorldRenderer;
 import net.caffeinemc.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import net.caffeinemc.mods.sodium.client.render.viewport.Viewport;
@@ -44,10 +48,13 @@ import org.joml.Matrix4f;
 import org.joml.Vector3dc;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.SortedSet;
 
 /**
@@ -64,6 +71,9 @@ public abstract class SodiumWorldRendererMixin {
 
     @Shadow
     private @Nullable ClientLevel level;
+
+    @Unique
+    private final Map<ClientSubLevel, SubLevelImmediateMesh> sable$meshes = new IdentityHashMap<>();
 
     // Sodium cancels LevelRenderer#extractVisibleBlockEntities at HEAD, which
     // bypasses Sable's vanilla RETURN hook. Append transformed plot block
@@ -130,7 +140,10 @@ public abstract class SodiumWorldRendererMixin {
             return;
         }
 
-        ((ClientSubLevel) plot.getSubLevel()).getRenderData().setDirty(sectionX, sectionY, sectionZ, playerChanged);
+        final ClientSubLevel subLevel = (ClientSubLevel) plot.getSubLevel();
+        subLevel.getRenderData().setDirty(sectionX, sectionY, sectionZ, playerChanged);
+        // Blocks or plot light changed; re-tesselate the immediate mesh on the next draw.
+        this.sable$meshes.remove(subLevel);
         ci.cancel();
     }
 
@@ -169,7 +182,10 @@ public abstract class SodiumWorldRendererMixin {
         // so bind it here as well instead of inheriting stale GUI/item lights.
         minecraft.gameRenderer.getLighting().setupFor(Lighting.Entry.LEVEL);
 
+        final boolean ambientOcclusion = minecraft.options.ambientOcclusion().get();
+        final ReferenceOpenHashSet<ClientSubLevel> liveSubLevels = new ReferenceOpenHashSet<>();
         for (final ClientSubLevel subLevel : container.getAllSubLevels()) {
+            liveSubLevels.add(subLevel);
             final SubLevelLightVertexConsumerProvider blockBuffers = new SubLevelLightVertexConsumerProvider(
                     this.level,
                     subLevel,
@@ -181,50 +197,34 @@ public abstract class SodiumWorldRendererMixin {
             final SubLevelRenderData renderData = subLevel.getRenderData();
             final Pose3dc renderPose = subLevel.renderPose(partialTick);
             final Vector3dc rotationPoint = renderPose.rotationPoint();
+            final Matrix4f transformation = renderData.getTransformation(cameraX, cameraY, cameraZ);
+            final BoundingBox3ic bounds = subLevel.getPlot().getBoundingBox();
+
+            SubLevelImmediateMesh mesh = this.sable$meshes.get(subLevel);
+            if (mesh == null || !mesh.matches(bounds, ambientOcclusion, cutoutLeaves, blockModels)) {
+                mesh = this.sable$buildMesh(bounds, blockRenderer, blockModels, ambientOcclusion, cutoutLeaves);
+                this.sable$meshes.put(subLevel, mesh);
+            }
+            mesh.replay(transformation, rotationPoint, blockBuffers);
+
             final PoseStack poseStack = new PoseStack();
-            final BlockQuadOutput quadOutput = (x, y, z, quad, instance) ->
-                    putBakedQuad(poseStack, blockBuffers.getBuffer(quad.materialInfo().layer()), x, y, z, quad, instance);
-            final BlockQuadOutput solidQuadOutput = (x, y, z, quad, instance) ->
-                    putBakedQuad(poseStack, blockBuffers.getBuffer(ChunkSectionLayer.SOLID), x, y, z, quad, instance);
-            poseStack.mulPose(renderData.getTransformation(cameraX, cameraY, cameraZ));
-            final var bounds = subLevel.getPlot().getBoundingBox();
-            for (final BlockPos blockPos : BlockPos.betweenClosed(
-                    bounds.minX(), bounds.minY(), bounds.minZ(),
-                    bounds.maxX(), bounds.maxY(), bounds.maxZ())) {
-                final BlockState blockState = this.level.getBlockState(blockPos);
-                if (blockState.isAir()) {
-                    continue;
-                }
+            poseStack.mulPose(transformation);
+            for (final PlotChunkHolder holder : subLevel.getPlot().getLoadedChunks()) {
+                for (final BlockEntity blockEntity : holder.getChunk().getBlockEntities().values()) {
+                    if (blockEntity.isRemoved()) {
+                        continue;
+                    }
 
-                poseStack.pushPose();
-                // Subtract in double precision before storing the translation in
-                // the float pose matrix; plot coordinates are tens of millions of
-                // blocks away and two separate translations lose local precision.
-                poseStack.translate(
-                        blockPos.getX() - rotationPoint.x(),
-                        blockPos.getY() - rotationPoint.y(),
-                        blockPos.getZ() - rotationPoint.z()
-                );
-                if (blockState.getRenderShape() == RenderShape.MODEL) {
-                    // The terrain-like renderer computes AO and packed light for
-                    // every vertex. renderSingleBlock uses one light value for the
-                    // entire model, which makes nearby light sources visibly step
-                    // from one sub-level block to the next.
-                    blockRenderer.tesselateBlock(
-                            ModelBlockRenderer.forceOpaque(cutoutLeaves, blockState) ? solidQuadOutput : quadOutput,
-                            0.0F,
-                            0.0F,
-                            0.0F,
-                            this.level,
-                            blockPos,
-                            blockState,
-                            blockModels.get(blockState),
-                            blockState.getSeed(blockPos)
+                    final BlockPos blockPos = blockEntity.getBlockPos();
+                    poseStack.pushPose();
+                    // Subtract in double precision before storing the translation in
+                    // the float pose matrix; plot coordinates are tens of millions of
+                    // blocks away and two separate translations lose local precision.
+                    poseStack.translate(
+                            blockPos.getX() - rotationPoint.x(),
+                            blockPos.getY() - rotationPoint.y(),
+                            blockPos.getZ() - rotationPoint.z()
                     );
-                }
-
-                final BlockEntity blockEntity = this.level.getBlockEntity(blockPos);
-                if (blockEntity != null && !blockEntity.isRemoved()) {
                     final int plotLight = LevelRenderer.getLightCoords(this.level, blockPos);
                     SubLevelBlockEntityRenderRegistry.render(
                             blockEntity,
@@ -234,12 +234,66 @@ public abstract class SodiumWorldRendererMixin {
                             plotLight,
                             OverlayTexture.NO_OVERLAY
                     );
+                    poseStack.popPose();
                 }
-                poseStack.popPose();
             }
         }
+        this.sable$meshes.keySet().retainAll(liveSubLevels);
 
         bufferSource.endBatch();
+    }
+
+    /**
+     * Tesselates every block model in the plot once, relative to the plot's minimum corner.
+     */
+    @Unique
+    private SubLevelImmediateMesh sable$buildMesh(
+            final BoundingBox3ic bounds,
+            final ModelBlockRenderer blockRenderer,
+            final BlockStateModelSet blockModels,
+            final boolean ambientOcclusion,
+            final boolean cutoutLeaves
+    ) {
+        final SubLevelImmediateMesh mesh = new SubLevelImmediateMesh(bounds, ambientOcclusion, cutoutLeaves, blockModels);
+        final BlockPos origin = mesh.origin();
+        final PoseStack poseStack = new PoseStack();
+        final BlockQuadOutput quadOutput = (x, y, z, quad, instance) ->
+                putBakedQuad(poseStack, mesh.recorder(quad.materialInfo().layer()), x, y, z, quad, instance);
+        final BlockQuadOutput solidQuadOutput = (x, y, z, quad, instance) ->
+                putBakedQuad(poseStack, mesh.recorder(ChunkSectionLayer.SOLID), x, y, z, quad, instance);
+
+        for (final BlockPos blockPos : BlockPos.betweenClosed(
+                bounds.minX(), bounds.minY(), bounds.minZ(),
+                bounds.maxX(), bounds.maxY(), bounds.maxZ())) {
+            final BlockState blockState = this.level.getBlockState(blockPos);
+            if (blockState.isAir() || blockState.getRenderShape() != RenderShape.MODEL) {
+                continue;
+            }
+
+            poseStack.pushPose();
+            poseStack.translate(
+                    blockPos.getX() - origin.getX(),
+                    blockPos.getY() - origin.getY(),
+                    blockPos.getZ() - origin.getZ()
+            );
+            // The terrain-like renderer computes AO and packed light for
+            // every vertex. renderSingleBlock uses one light value for the
+            // entire model, which makes nearby light sources visibly step
+            // from one sub-level block to the next.
+            blockRenderer.tesselateBlock(
+                    ModelBlockRenderer.forceOpaque(cutoutLeaves, blockState) ? solidQuadOutput : quadOutput,
+                    0.0F,
+                    0.0F,
+                    0.0F,
+                    this.level,
+                    blockPos,
+                    blockState,
+                    blockModels.get(blockState),
+                    blockState.getSeed(blockPos)
+            );
+            poseStack.popPose();
+        }
+        return mesh;
     }
 
     private static void putBakedQuad(

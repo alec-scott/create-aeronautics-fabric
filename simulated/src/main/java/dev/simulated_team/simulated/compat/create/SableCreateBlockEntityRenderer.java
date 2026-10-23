@@ -83,6 +83,12 @@ public final class SableCreateBlockEntityRenderer {
         final Pose3dc renderPose = subLevel.renderPose(partialTick);
         final Vec3 localCameraPosition =
                 renderPose.transformPositionInverse(camera.position());
+        // Mirror the checks BlockEntityRenderDispatcher#tryExtractRenderState makes before extracting.
+        if (!blockEntity.getType().isValid(blockEntity.getBlockState())
+                || !renderer.shouldRender(blockEntity, localCameraPosition)) {
+            return;
+        }
+
         final CameraRenderState cameraState = createCameraState(
                 camera,
                 renderPose,

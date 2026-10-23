@@ -4,6 +4,7 @@ import dev.ryanhcode.sable.compatibility.scalablelux.ScalableLuxCompat;
 import dev.ryanhcode.sable.platform.SableLoaderPlatform;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LightChunkGetter;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 
 /**
@@ -19,6 +20,13 @@ public final class LightEngineCompat {
 
     public static boolean usesScalableLux() {
         return SCALABLE_LUX_LOADED;
+    }
+
+    public static LevelLightEngine createLightEngine(final LightChunkGetter chunkGetter, final boolean blockLight, final boolean skyLight) {
+        if (SCALABLE_LUX_LOADED) {
+            return ScalableLuxCompat.createLightEngine(chunkGetter, blockLight, skyLight);
+        }
+        return new LevelLightEngine(chunkGetter, blockLight, skyLight);
     }
 
     public static boolean hasBlockLight(final LevelLightEngine engine) {

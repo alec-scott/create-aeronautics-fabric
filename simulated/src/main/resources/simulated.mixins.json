@@ -42,6 +42,7 @@
     "redstone_link.LinkBehaviourMixin",
     "rope.ClientSubLevelContainerMixin",
     "rope.LevelRendererMixin",
+    "sable_render.ContraptionEntityRendererMixin",
     "sable_render.KineticBlockEntityRendererMixin",
     "sable_render.PlacementClientMixin",
     "sable_render.VisualizationManagerImplMixin",

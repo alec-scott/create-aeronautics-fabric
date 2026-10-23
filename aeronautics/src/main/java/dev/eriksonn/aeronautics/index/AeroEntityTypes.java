@@ -7,6 +7,7 @@ import com.tterrag.registrate.util.entry.EntityEntry;
 import dev.eriksonn.aeronautics.Aeronautics;
 import dev.eriksonn.aeronautics.content.blocks.hot_air.gust.GustEntity;
 import dev.eriksonn.aeronautics.content.blocks.propeller.bearing.contraption.PropellerBearingContraptionEntity;
+import dev.eriksonn.aeronautics.content.blocks.propeller.bearing.contraption.PropellerBearingContraptionEntityRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
 import net.minecraft.world.entity.MobCategory;
 
@@ -18,7 +19,7 @@ public class AeroEntityTypes {
 
 	public static final EntityEntry<PropellerBearingContraptionEntity> PROPELLER_CONTROLLED_CONTRAPTION =
 			REGISTRATE.entity("propeller_bearing_contraption", PropellerBearingContraptionEntity::new, MobCategory.MISC)
-					.renderer(() -> ContraptionEntityRenderer::new)
+					.renderer(() -> PropellerBearingContraptionEntityRenderer::new)
 					.transform(builder -> applyLoaderSpecificTransform(builder,
 							new EntityLoaderData(20, 40, 1, 1, 0, true, true, false)))
 					.register();
