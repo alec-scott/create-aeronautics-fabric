@@ -466,6 +466,13 @@ probably crashed if reached. What each use became:
 - Fixed the runtime mixin mismatches (table under "Runtime mixin fixes") and bumped Fabric Loader to 0.20.1.
   **Production server and client smoke both pass.** The client smoke now waits for the resource reload to finish.
 
+### 2026-11-06
+- **CC:Tweaked crash fixed** (`4d6c727`): with CC:Tweaked installed, `Simulated.init` crashed with "Unable to find
+  SimPeripheralService implementation"; only NeoForge had one (upstream's Fabric branch has the same gap). Added
+  `fabric/service/FabricSimPeripheralService` (CC's `PeripheralLookup` / `WiredElementLookup`, registered as fallback
+  providers because the block entity types are registered after the compat hook runs) and its `META-INF/services`
+  entry. Dedicated server boots with CC:Tweaked 1.120.0; peripherals not yet tested in game.
+
 ## Decisions
 
 - **Upgrade 1.21.11 worlds automatically** (2026-10-22; reverses the earlier "no migration" decision). Our moves
