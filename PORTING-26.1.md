@@ -483,3 +483,10 @@ probably crashed if reached. What each use became:
   bundles it, and the other modules depend on it directly. A separate repo would add
   publishing and version coordination for no gain. Revisit only if Sable needs to be
   published on its own for other mods.
+
+## Trinkets (2026-11-24, not in upstream)
+
+Aviator's Goggles can be worn in the Trinkets `head/face` slot (Trinkets Updated 4.0.1, Patbox, `eu.pb4.trinkets`,
+compileOnly, optional; `fabric/compat/trinkets/`), so they work next to a helmet. They count as Engineer's Goggles there
+(as Create Fly does for its goggles) and are drawn with their armour look on the head armour model, slightly enlarged
+over a worn helmet. Added at the user's request for cross-mod Trinkets support.

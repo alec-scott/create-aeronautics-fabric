@@ -1,5 +1,7 @@
 package dev.eriksonn.aeronautics.fabric;
 
+import net.fabricmc.loader.api.FabricLoader;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.zurrtum.create.client.catnip.placement.PlacementClient;
 import dev.eriksonn.aeronautics.Aeronautics;
@@ -41,6 +43,9 @@ public final class AeronauticsFabricClient implements ClientModInitializer {
                         null, null));
 
         AeronauticsClient.init();
+        if (FabricLoader.getInstance().isModLoaded("trinkets")) {
+            dev.eriksonn.aeronautics.fabric.compat.trinkets.AviatorsGogglesTrinkets.initClient();
+        }
 
         LevelRenderEvents.START_MAIN.register(
                 context -> IrisBurnerFlameRenderQueue.beginWorldFrame()

@@ -1,5 +1,7 @@
 package dev.eriksonn.aeronautics.fabric;
 
+import net.fabricmc.loader.api.FabricLoader;
+
 import dev.eriksonn.aeronautics.Aeronautics;
 import dev.eriksonn.aeronautics.data.AeroAdvancementTriggers;
 import dev.eriksonn.aeronautics.events.AeronauticsCommonEvents;
@@ -34,6 +36,9 @@ public final class AeronauticsFabric implements ModInitializer {
         AeroAdvancementTriggers.register();
 
         Aeronautics.getRegistrate().register();
+        if (FabricLoader.getInstance().isModLoaded("trinkets")) {
+            dev.eriksonn.aeronautics.fabric.compat.trinkets.AviatorsGogglesTrinkets.init();
+        }
 
         ServerTickEvents.END_LEVEL_TICK.register(AeronauticsCommonEvents::onServerTickEnd);
         ServerLifecycleEvents.SERVER_STOPPED.register(AeronauticsCommonEvents::onServerStopped);

@@ -68,6 +68,7 @@ dependencies {
     compileOnly "org.projectlombok:lombok:1.18.42"
     annotationProcessor "org.projectlombok:lombok:1.18.42"
     compileOnly "maven.modrinth:jei:${jei_version}"
+    compileOnly "eu.pb4:trinkets:${trinkets_version}"
     compileOnly "maven.modrinth:natures-compass:${natures_compass_version}"
     compileOnly "maven.modrinth:explorers-compass:${explorers_compass_version}"
     compileOnly "maven.modrinth:sodium:${sodium_version}"
