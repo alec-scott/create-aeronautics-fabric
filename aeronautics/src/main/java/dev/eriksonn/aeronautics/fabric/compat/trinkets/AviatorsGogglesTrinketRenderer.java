@@ -19,11 +19,11 @@ import net.minecraft.world.item.equipment.Equippable;
 
 /**
  * PORT-NOTE(mc26.1): draws Aviator's Goggles worn in a Trinkets slot with their normal armour look (equipment asset
- * on the player-armour head model), as the helmet slot would. When a helmet is also worn the goggles are drawn
- * slightly larger so they sit on top of it instead of clipping into it.
+ * on the player-armour head model), as the helmet slot would. When a helmet is also worn only the strap and lenses
+ * (outer layer) are drawn, around the helmet, instead of the full goggle cap.
  */
 public class AviatorsGogglesTrinketRenderer implements TrinketRenderer {
-    private static final float OVER_HELMET_SCALE = 1.1F;
+    private static final float OVER_HELMET_SCALE = 1.02F; // a hair more so the strap never z-fights bulky helmets
 
     private final HumanoidModel<HumanoidRenderState> model;
     private final EquipmentLayerRenderer equipmentRenderer;
@@ -47,14 +47,14 @@ public class AviatorsGogglesTrinketRenderer implements TrinketRenderer {
         }
 
         this.model.setupAnim(humanoid);
-        float scale = humanoid.headEquipment.isEmpty() ? 1.0F : OVER_HELMET_SCALE;
-        this.model.head.xScale = scale;
-        this.model.head.yScale = scale;
-        this.model.head.zScale = scale;
+        // Over a helmet, skip the capped inner head cube and draw only the outer "hat" layer, which in the goggle
+        // texture is just the strap and lenses; it already sits half a pixel outside the helmet.
+        boolean overHelmet = !humanoid.headEquipment.isEmpty();
+        this.model.head.skipDraw = overHelmet;
+        this.model.hat.xScale = this.model.hat.yScale = this.model.hat.zScale = overHelmet ? OVER_HELMET_SCALE : 1.0F;
         this.equipmentRenderer.renderLayers(EquipmentClientInfo.LayerType.HUMANOID, equippable.assetId().get(),
                 this.model, humanoid, stack, poseStack, queue, light, humanoid.outlineColor);
-        this.model.head.xScale = 1.0F;
-        this.model.head.yScale = 1.0F;
-        this.model.head.zScale = 1.0F;
+        this.model.head.skipDraw = false;
+        this.model.hat.xScale = this.model.hat.yScale = this.model.hat.zScale = 1.0F;
     }
 }
