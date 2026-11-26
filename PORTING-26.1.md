@@ -490,3 +490,8 @@ Aviator's Goggles can be worn in the Trinkets `head/face` slot (Trinkets Updated
 compileOnly, optional; `fabric/compat/trinkets/`), so they work next to a helmet. They count as Engineer's Goggles there
 (as Create Fly does for its goggles) and are drawn with their armour look on the head armour model, slightly enlarged
 over a worn helmet. Added at the user's request for cross-mod Trinkets support.
+
+### 2026-11-26
+- Steering wheel angle HUD (shown with goggles) drew as stripes from the top-left corner: `blit(tex, x, y, u, v, w, h,
+  texW, texH)` resolved to 26.1's corner overload `blit(Identifier, x0, y0, x1, y1, u0, u1, v0, v1)`. Now passes
+  `RenderPipelines.GUI_TEXTURED` (`SteeringWheelHandler`, and the same mistake in `DiagramScreen` greebles).
